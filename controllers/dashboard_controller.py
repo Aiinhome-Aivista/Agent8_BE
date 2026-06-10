@@ -8,6 +8,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/customer")
 def customer_dashboard(token_data: dict = Depends(verify_token)):
     user_id = int(token_data["sub"])
+    role = token_data.get("role", "customer")
     policies = execute_query(
         "SELECT COUNT(*) as total, SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) as active, SUM(CASE WHEN status='expired' THEN 1 ELSE 0 END) as expired, SUM(premium) as total_premium, SUM(coverage_amount) as total_coverage FROM policies WHERE customer_id=%s",
         (user_id,), fetch="one"
@@ -37,7 +38,7 @@ def customer_dashboard(token_data: dict = Depends(verify_token)):
         kb_query = "insurance policy coverage benefits"
         if active_pol_rows:
             kb_query += " " + " ".join(p["policy_type"] for p in active_pol_rows)
-        chunks = search_kb_documents(kb_query, top_k=3)
+        chunks = search_kb_documents(kb_query, top_k=3, user_id=user_id, user_role=role)
         kb_insights = [c[:300].strip() + ("…" if len(c) > 300 else "") for c in chunks if c.strip()]
     except Exception as e:
         print(f"[WARN] KB vector search on dashboard failed: {e}")
@@ -71,7 +72,7 @@ def customer_dashboard(token_data: dict = Depends(verify_token)):
             if not context_chunks and customer_name:
                 from utils.kb_helper import search_kb_documents
                 name_chunks = search_kb_documents(
-                    f"{customer_name} policy premium coverage sum insured", top_k=6
+                    f"{customer_name} policy premium coverage sum insured", top_k=6, user_id=user_id, user_role=role
                 )
                 # Keep only chunks that actually contain the customer's name
                 # (to avoid picking up generic company docs)

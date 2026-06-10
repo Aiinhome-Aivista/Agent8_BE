@@ -3,6 +3,7 @@ from typing import List
 from fastapi.responses import JSONResponse
 import os
 import uuid
+import bcrypt
 
 from utils.kb_helper import process_and_store_document
 from middleware.jwt_auth import verify_token
@@ -61,11 +62,39 @@ async def upload_document(file: List[UploadFile] = File(...), token_data: dict =
                     "relevance_score": result.get("relevance_score")
                 })
             else:
+                customer_email = result.get("customer_email")
+                customer_name = result.get("customer_name") or "Unknown Customer"
+                customer_phone = result.get("customer_phone")
+                customer_address = result.get("customer_address")
+                doc_user_id = user_id  # default to uploader
+
+                if customer_email:
+                    existing_user = execute_query("SELECT id FROM users WHERE email = %s", (customer_email,), fetch="one")
+                    if existing_user:
+                        doc_user_id = existing_user["id"]
+                    else:
+                        hashed_pw = bcrypt.hashpw(b"123456", bcrypt.gensalt()).decode()
+                        try:
+                            doc_user_id = execute_query(
+                                "INSERT INTO users (name, email, phone, address, password, role) VALUES (%s, %s, %s, %s, %s, %s)",
+                                (customer_name, customer_email, customer_phone, customer_address, hashed_pw, "customer"), fetch="none"
+                            )
+                            # Send welcome email with credentials
+                            try:
+                                from utils.email import send_email
+                                subject = "Welcome to InsureAI Pro - Your Account Details"
+                                body = f"Dear {customer_name},\n\nAn account has been automatically created for you following your document upload.\n\nYour login details are:\nEmail: {customer_email}\nPassword: 123456\n\nPlease log in to access your portal.\n\nBest Regards,\nInsureAI Support"
+                                send_email(customer_email, subject, body)
+                            except Exception as email_err:
+                                print(f"Failed to send welcome email: {email_err}")
+                        except Exception as e:
+                            print(f"Failed to create new customer user: {e}")
+
                 # Insert valid document into SQL with category and relevance score
                 try:
                     doc_id = execute_query(
                         "INSERT INTO uploaded_documents (user_id, policy_id, file_name, file_path, document_type, file_size, relevance_score, category) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-                        (user_id, None, f.filename, filepath, 'knowledge_base', len(file_bytes), result.get("relevance_score"), result.get("category")), fetch="none"
+                        (doc_user_id, None, f.filename, filepath, 'knowledge_base', len(file_bytes), result.get("relevance_score"), result.get("category")), fetch="none"
                     )
                 except Exception as e:
                     print(f"SQL Insert failed: {e}")

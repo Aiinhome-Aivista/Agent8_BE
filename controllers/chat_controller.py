@@ -274,7 +274,7 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     # Search both user-specific documents and global knowledge base
     rag_chunks = search_documents(user_id, rag_query, top_k=5)
     from utils.kb_helper import search_kb_documents
-    kb_chunks = search_kb_documents(rag_query, top_k=5)
+    kb_chunks = search_kb_documents(rag_query, top_k=5, user_id=user_id, user_role=token_data.get("role"))
     
     # Interleave chunks so both get fair representation if available
     all_chunks = []

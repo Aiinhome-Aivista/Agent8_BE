@@ -18,15 +18,39 @@ except Exception:
 from utils.local_llm_helper import _chat
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-ARANGO_HOST     = os.getenv("ARANGO_HOST", "https://a71fd1666bd9.arangodb.cloud:8529")
-ARANGO_DB       = os.getenv("ARANGO_DB", "underwriting_db")
-ARANGO_USERNAME = os.getenv("ARANGO_USERNAME", "root")
-ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "TnHBO0Y4FwKptmr6GxrL")
+ARANGO_HOST = os.getenv(
+    "ARANGO_HOST",
+    "http://157.173.221.226:8529"
+)
+
+ARANGO_DB = os.getenv(
+    "ARANGO_DB",
+    "iua_db"
+)
+
+ARANGO_USERNAME = os.getenv(
+    "ARANGO_USERNAME",
+    "root"
+)
+
+ARANGO_PASSWORD = os.getenv(
+    "ARANGO_PASSWORD",
+    ""
+)
+
+print("\n========== ARANGO CONFIG ==========")
+print("ARANGO_HOST =", ARANGO_HOST)
+print("ARANGO_DB =", ARANGO_DB)
+print("ARANGO_USERNAME =", ARANGO_USERNAME)
+print("===================================\n")
+
+
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
 MISTRAL_MODEL   = os.getenv("MISTRAL_MODEL", "mistral")
 RELEVANCE_THRESHOLD = 70   # Documents below this score are rejected
 
 # ─── ChromaDB Setup ───────────────────────────────────────────────────────────
+# pyrefly: ignore [missing-import]
 from chromadb.config import Settings
 CHROMA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "chroma_store")
 _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH, settings=Settings(anonymized_telemetry=False))
@@ -39,19 +63,45 @@ kb_collection = _chroma_client.get_or_create_collection(
 )
 
 # ─── ArangoDB Setup ───────────────────────────────────────────────────────────
-_arango_client = ArangoClient(hosts=ARANGO_HOST)
+_db = None
+
 try:
-    _db = _arango_client.db(ARANGO_DB, username=ARANGO_USERNAME, password=ARANGO_PASSWORD)
+    print(f"[INFO] Connecting to ArangoDB -> {ARANGO_HOST}")
+
+    _arango_client = ArangoClient(
+        hosts=ARANGO_HOST
+    )
+
+    _db = _arango_client.db(
+        ARANGO_DB,
+        username=ARANGO_USERNAME,
+        password=ARANGO_PASSWORD
+    )
+
+    print("[OK] ArangoDB client initialized")
+
 except Exception as e:
-    print(f"Failed to connect to ArangoDB: {e}")
+    print(f"[ERROR] ArangoDB connection failed: {e}")
     _db = None
 
 def init_arango_collections():
-    if not _db: return
-    if not _db.has_collection("kb_nodes"):
-        _db.create_collection("kb_nodes")
-    if not _db.has_collection("kb_edges"):
-        _db.create_collection("kb_edges", edge=True)
+
+    if not _db:
+        print("[WARNING] ArangoDB unavailable")
+        return
+
+    try:
+
+        if not _db.has_collection("kb_nodes"):
+            _db.create_collection("kb_nodes")
+            print("[OK] kb_nodes created")
+
+        if not _db.has_collection("kb_edges"):
+            _db.create_collection("kb_edges", edge=True)
+            print("[OK] kb_edges created")
+
+    except Exception as e:
+        print(f"[ERROR] Arango collection init failed: {e}")
 
 # Initialize collections
 init_arango_collections()
@@ -144,6 +194,28 @@ def assess_document_category(text: str) -> str:
         print(f"LLM Category extraction failed: {e}")
     return "Other"
 
+def extract_customer_info(text: str) -> dict:
+    """Use the LLM to extract the customer's name, email, phone, and address from the document."""
+    system = (
+        "You are an AI data extractor. Read the provided document text and extract the primary customer's full name, email address, phone number, and physical address.\n"
+        "Return ONLY a JSON object with four fields: 'name', 'email', 'phone', and 'address'. If any is not found, return null for that field.\n"
+        "Do NOT return any other text, just JSON. Example: {\"name\": \"Ananya Roy\", \"email\": \"ananya@example.com\", \"phone\": \"9876543210\", \"address\": \"123 Park St, Kolkata\"}"
+    )
+    try:
+        resp = _chat(model=MISTRAL_MODEL, messages=[{"role": "system", "content": system}, {"role": "user", "content": text[:4000]}], max_tokens=250, temperature=0.0)
+        content = resp["choices"][0]["message"]["content"].strip()
+        content = content.replace("```json", "").replace("```", "").strip()
+        result = json.loads(content)
+        return {
+            "name": result.get("name"), 
+            "email": result.get("email"),
+            "phone": result.get("phone"),
+            "address": result.get("address")
+        }
+    except Exception as e:
+        print(f"LLM Customer info extraction failed: {e}")
+        return {"name": None, "email": None, "phone": None, "address": None}
+
 def process_and_store_document(file_bytes: bytes, filename: str) -> dict:
     print(f"\n[INFO] Starting processing for document: {filename}")
     print(f"[INFO] File size: {len(file_bytes)} bytes")
@@ -190,6 +262,11 @@ def process_and_store_document(file_bytes: bytes, filename: str) -> dict:
         }
         
     print("[INFO] Document ACCEPTED. Proceeding with Graph Extraction & Vector Store Embedding...")
+
+    # ── Extract Customer Info ────────────────────────────────────────────────
+    print("[INFO] Calling LLM to extract customer info...")
+    customer_info = extract_customer_info(text)
+    print(f"[INFO] Customer Info Extracted: Name={customer_info.get('name')}, Email={customer_info.get('email')}, Phone={customer_info.get('phone')}, Address={customer_info.get('address')}")
 
     # ── Generate summary (used by both ArangoDB and ChromaDB) ────────────────
     summary = ""
@@ -301,18 +378,39 @@ def process_and_store_document(file_bytes: bytes, filename: str) -> dict:
         "edges_created": edges_inserted,
         "summary": summary,
         "relevance_score": relevance_score,
-        "category": category
+        "category": category,
+        "customer_name": customer_info.get("name"),
+        "customer_email": customer_info.get("email"),
+        "customer_phone": customer_info.get("phone"),
+        "customer_address": customer_info.get("address")
     }
 
-def search_kb_documents(query: str, top_k: int = 5) -> list:
+def search_kb_documents(query: str, top_k: int = 5, user_id: int = None, user_role: str = None) -> list:
     """Semantic search in the company knowledge base."""
     try:
         if kb_collection.count() == 0:
             return []
         
+        where_clause = None
+        if user_role == "customer" and user_id is not None:
+            from database.db import execute_query
+            rows = execute_query(
+                "SELECT ud.file_name FROM uploaded_documents ud JOIN users u ON ud.user_id = u.id WHERE ud.user_id = %s OR u.role != 'customer'",
+                (user_id,), fetch="all"
+            )
+            allowed_files = [r["file_name"] for r in rows]
+            
+            if not allowed_files:
+                return []
+            if len(allowed_files) == 1:
+                where_clause = {"source": allowed_files[0]}
+            else:
+                where_clause = {"source": {"$in": allowed_files}}
+
         results = kb_collection.query(
             query_texts=[query],
-            n_results=min(top_k, kb_collection.count())
+            n_results=min(top_k, kb_collection.count()),
+            where=where_clause
         )
         return results.get("documents", [[]])[0]
     except Exception as e:
