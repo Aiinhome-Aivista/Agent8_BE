@@ -1,5 +1,5 @@
 from agents.base_agent import BaseAgent
-from database.db_utils import execute_query
+from database.db import execute_query
 from services.sla.sla_service import SLAService
 from services.memory.memory_service import MemoryService
 

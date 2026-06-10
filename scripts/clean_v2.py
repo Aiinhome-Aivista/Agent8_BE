@@ -70,7 +70,10 @@ try:
         tables = [
             "audit_logs", "chat_history", "csr_notes", 
             "endorsements", "escalations", "guardrail_logs", 
-            "notifications", "renewals", "uploaded_documents"
+            "notifications", "renewals", "uploaded_documents",
+            "session_memory", "episodic_memory", "approval_requests",
+            "approval_history", "sla_tracking", "notification_queue",
+            "otp_verifications", "policies"
         ]
         for t in tables:
             try:

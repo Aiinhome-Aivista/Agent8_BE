@@ -31,7 +31,7 @@ async def upload_document(file: List[UploadFile] = File(...), token_data: dict =
     for f in files:
         try:
             lower = f.filename.lower()
-            if not lower.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+            if not lower.endswith(('.pdf', '.jpg', '.jpeg', '.png', '.txt')):
                 results.append({"filename": f.filename, "success": False, "error": "Invalid file type"})
                 continue
 

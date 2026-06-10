@@ -46,7 +46,6 @@ def get_audit_logs(
     )
     total = execute_query(f"SELECT COUNT(*) as cnt FROM audit_logs a {w}", tuple(params), fetch="one")
 
-    write_audit_log(int(token_data["sub"]), "AUDIT_LOG_VIEWED", "compliance", None, f"Viewed {len(rows)} audit records")
     return {"logs": rows, "total": total["cnt"], "page": page, "page_size": page_size}
 
 @router.get("/guardrail-violations")

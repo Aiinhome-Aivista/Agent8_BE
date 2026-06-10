@@ -1,5 +1,5 @@
 from datetime import datetime
-from database.db_utils import execute_query, fetch_all
+from database.db import execute_query, fetch_all
 
 class NotificationService:
     def __init__(self):

@@ -1,5 +1,5 @@
 from agents.base_agent import BaseAgent
-from database.db_utils import fetch_one
+from database.db import fetch_one
 
 class PolicyAgent(BaseAgent):
     def __init__(self):

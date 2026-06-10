@@ -164,6 +164,8 @@ def process_and_store_document(file_bytes: bytes, filename: str) -> dict:
         text = extract_text_from_pdf(file_bytes)
     elif lower.endswith(('.jpg', '.jpeg', '.png')):
         text = extract_text_from_image(file_bytes)
+    elif lower.endswith('.txt'):
+        text = file_bytes.decode('utf-8', errors='ignore')
     else:
         # try PDF fallback
         text = extract_text_from_pdf(file_bytes)

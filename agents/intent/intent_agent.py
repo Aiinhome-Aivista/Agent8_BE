@@ -1,6 +1,6 @@
 from agents.base_agent import BaseAgent
 # pyrefly: ignore [missing-import]
-from database.db_utils import fetch_one
+from database.db import fetch_one
 
 class IntentAgent(BaseAgent):
     def __init__(self):

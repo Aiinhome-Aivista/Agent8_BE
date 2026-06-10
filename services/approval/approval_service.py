@@ -1,5 +1,5 @@
 from datetime import datetime
-from database.db_utils import execute_query
+from database.db import execute_query
 
 class ApprovalService:
     def __init__(self):

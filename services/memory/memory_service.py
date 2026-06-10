@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from database.db_utils import execute_query, fetch_one, fetch_all
+from database.db import execute_query, fetch_one, fetch_all
 
 class MemoryService:
     def __init__(self):

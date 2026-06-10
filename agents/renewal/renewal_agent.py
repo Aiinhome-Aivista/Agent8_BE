@@ -1,6 +1,6 @@
 from agents.base_agent import BaseAgent
 from services.notification.notification_service import NotificationService
-from database.db_utils import execute_query
+from database.db import execute_query
 
 class RenewalAgent(BaseAgent):
     def __init__(self):

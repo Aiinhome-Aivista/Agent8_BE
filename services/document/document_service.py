@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from database.db_utils import execute_query
+from database.db import execute_query
 
 class DocumentService:
     def __init__(self):

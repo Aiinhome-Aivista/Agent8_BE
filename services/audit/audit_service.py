@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from database.db_utils import execute_query
+from database.db import execute_query
 
 class AuditService:
     def __init__(self):
