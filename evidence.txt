@@ -1,0 +1,255 @@
+=== 1. Actual folder structure (Agent8_BE limit 3 levels) ===
+Agent8_BE/
+    .env
+    .gitignore
+    app.py
+    get_evidence.py
+    requirements.txt
+    .git/
+        COMMIT_EDITMSG
+        config
+        description
+        FETCH_HEAD
+        HEAD
+        index
+        gk/
+            config
+        hooks/
+            applypatch-msg.sample
+            commit-msg.sample
+            fsmonitor-watchman.sample
+            post-update.sample
+            pre-applypatch.sample
+            pre-commit.sample
+            pre-merge-commit.sample
+            pre-push.sample
+            pre-rebase.sample
+            pre-receive.sample
+            prepare-commit-msg.sample
+            push-to-checkout.sample
+            sendemail-validate.sample
+            update.sample
+        info/
+            exclude
+        logs/
+            HEAD
+        objects/
+        refs/
+    agents/
+        base_agent.py
+        approval/
+            approval_agent.py
+        audit/
+            audit_agent.py
+        auth/
+            auth_agent.py
+            identity_verification.py
+            otp_agent.py
+        compliance/
+            compliance_agent.py
+        document/
+            document_agent.py
+        escalation/
+            escalation_agent.py
+        guardrails/
+            guardrail_agent.py
+        intent/
+            agent.py
+            intent_agent.py
+        notification/
+            notification_agent.py
+        policy/
+            policy_agent.py
+            policy_retriever.py
+        rag/
+            rag_agent.py
+        renewal/
+            renewal_agent.py
+        sla/
+            sla_agent.py
+        supervisor/
+            agent.py
+            routing_engine.py
+            supervisor_agent.py
+            workflow_manager.py
+        transaction/
+    chroma_store/
+        chroma.sqlite3
+    controllers/
+        auth_controller.py
+        chat_controller.py
+        compliance_controller.py
+        dashboard_controller.py
+        document_controller.py
+        endorsement_controller.py
+        escalation_controller.py
+        knowledge_base_controller.py
+        notification_controller.py
+        policy_controller.py
+        rag_controller.py
+        renewal_controller.py
+        __pycache__/
+            auth_controller.cpython-312.pyc
+            chat_controller.cpython-312.pyc
+            compliance_controller.cpython-312.pyc
+            dashboard_controller.cpython-312.pyc
+            document_controller.cpython-312.pyc
+            endorsement_controller.cpython-312.pyc
+            escalation_controller.cpython-312.pyc
+            knowledge_base_controller.cpython-312.pyc
+            notification_controller.cpython-312.pyc
+            policy_controller.cpython-312.pyc
+            rag_controller.cpython-312.pyc
+            renewal_controller.cpython-312.pyc
+    database/
+        db.py
+        migration_agentic_enhancement.sql
+        schema.sql
+        seed.sql
+        update_db.py
+        migrations/
+            001_create_tables.sql
+            002_indexes.sql
+            003_constraints.sql
+            004_seed_data.sql
+        __pycache__/
+            db.cpython-312.pyc
+    jobs/
+        memory_cleanup.py
+        notification_processor.py
+        sla_monitor.py
+        notification_processor/
+        sla_monitor/
+    middleware/
+        jwt_auth.py
+        __pycache__/
+            jwt_auth.cpython-312.pyc
+    prompts/
+        escalation/
+        intent/
+        policy/
+    scripts/
+    services/
+        approval/
+            approval_service.py
+        audit/
+            audit_service.py
+        document/
+            document_service.py
+        memory/
+            memory_service.py
+        notification/
+            notification_service.py
+        rag/
+            rag_service.py
+        sla/
+            sla_service.py
+    uploads/
+    utils/
+        common.py
+        email.py
+        escalation_worker.py
+        kb_helper.py
+        llm_helper.py
+        local_llm_helper.py
+        otp.py
+        rag_helper.py
+        __pycache__/
+            common.cpython-312.pyc
+            email.cpython-312.pyc
+            escalation_worker.cpython-312.pyc
+            kb_helper.cpython-312.pyc
+            llm_helper.cpython-312.pyc
+            local_llm_helper.cpython-312.pyc
+            openai_helper.cpython-312.pyc
+            otp.cpython-312.pyc
+            rag_helper.cpython-312.pyc
+    vectorstore/
+    venv/
+        pyvenv.cfg
+        Include/
+        Lib/
+        Scripts/
+            activate
+            activate.bat
+            Activate.ps1
+            chroma.exe
+            deactivate.bat
+            distro.exe
+            dotenv.exe
+            dumppdf.py
+            email_validator.exe
+            f2py.exe
+            hf.exe
+            httpx.exe
+            huggingface-cli.exe
+            markdown-it.exe
+            normalizer.exe
+            numpy-config.exe
+            onnxruntime_test.exe
+            opentelemetry-bootstrap.exe
+            opentelemetry-instrument.exe
+            pdf2txt.py
+            pdfplumber.exe
+            pip.exe
+            pip3.12.exe
+            pip3.exe
+            pygmentize.exe
+            pypdfium2.exe
+            pyproject-build.exe
+            pytesseract.exe
+            python.exe
+            pythonw.exe
+            tiny-agents.exe
+            tqdm.exe
+            typer.exe
+            uvicorn.exe
+            watchfiles.exe
+            websockets.exe
+            wsdump.exe
+    workflows/
+        endorsement/
+        escalation/
+        policy_inquiry/
+        renewal/
+Database error: 2003 (HY000): Can't connect to MySQL server on '187.127.163.17:3306' (10013)
+
+=== 3. Actual migration files ===
+001_create_tables.sql
+002_indexes.sql
+003_constraints.sql
+004_seed_data.sql
+
+=== 4. Actual agent files ===
+base_agent.py
+approval\approval_agent.py
+audit\audit_agent.py
+auth\auth_agent.py
+auth\identity_verification.py
+auth\otp_agent.py
+compliance\compliance_agent.py
+document\document_agent.py
+escalation\escalation_agent.py
+guardrails\guardrail_agent.py
+intent\agent.py
+intent\intent_agent.py
+notification\notification_agent.py
+policy\policy_agent.py
+policy\policy_retriever.py
+rag\rag_agent.py
+renewal\renewal_agent.py
+sla\sla_agent.py
+supervisor\agent.py
+supervisor\routing_engine.py
+supervisor\supervisor_agent.py
+supervisor\workflow_manager.py
+
+=== 5. Actual API routes ===
+
+
+=== 6. Actual ChromaDB configuration ===
+CHROMA_PATH=./chroma_store
+[Errno 2] No such file or directory: 'd:/Agent-8/Agent8_BE/utils/chroma_utils.py'
+
+=== 7. Actual test execution results ===
+[WinError 2] The system cannot find the file specified

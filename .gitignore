@@ -1,12 +1,41 @@
-venv
-env
-__pycache__
+# ========================
+# Virtual Environments & Secrets
+# ========================
+venv/
+env/
 .env
 .env.local
-.zip
-/chroma_db
-/graphs
-/policies
+# ========================
+# Python Cache & Compiled Files
+# ========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+*$py.class
+# ========================
+# Project Specific & Data
+# ========================
+*.zip
 *.pdf
+/chroma_db/
+/graphs/
+/policies/
 API/chroma_db/
 uploads/
+chroma_store/
+# ========================
+# IDEs and Editors
+# ========================
+.vscode/
+.idea/
+# ========================
+# OS Generated Files
+# ========================
+.DS_Store
+Thumbs.db
+# ========================
+# Logs
+# ========================
+*.log

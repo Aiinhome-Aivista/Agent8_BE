@@ -243,76 +243,24 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
             "violation_type": guard["violation_type"]
         }
 
-    # --- Intent detection ---
-    intent_result = detect_intent(message)
-    intent = intent_result.get("intent", "faq")
-    confidence = float(intent_result.get("confidence", 0.7))
-
-    # --- Build customer context from DB ---
-    user = execute_query("SELECT name, email, phone, address FROM users WHERE id = %s", (user_id,), fetch="one")
-    policies = execute_query(
-        "SELECT policy_number, policy_type, premium, expiry_date, status, coverage_amount FROM policies WHERE customer_id = %s AND status != 'cancelled'",
-        (user_id,), fetch="all"
-    )
-    open_escalations = execute_query(
-        "SELECT ticket_id, issue, status FROM escalations WHERE user_id = %s AND status IN ('open','in-progress')",
-        (user_id,), fetch="all"
-    )
-
-    context_parts = [f"Customer: {user['name']} ({user['email']})"]
+    # --- Delegate to Supervisor Agent ---
+    from agents.supervisor.supervisor_agent import SupervisorAgent
+    supervisor = SupervisorAgent()
+    input_data = {
+        "user_input": message,
+        "user_id": user_id,
+        "session_id": session_id
+    }
+    
+    # Provide a default policy_id if policies exist (useful for RenewalAgent/PolicyAgent)
     if policies:
-        pol_lines = [f"- {p['policy_type']} ({p['policy_number']}): Premium ₹{p['premium']:,.0f}/yr, Expires {p['expiry_date']}, Status: {p['status']}, Coverage: ₹{p['coverage_amount']:,.0f}" for p in policies]
-        context_parts.append("Active Policies:\n" + "\n".join(pol_lines))
-    if open_escalations:
-        esc_lines = [f"- {e['ticket_id']}: {e['issue'][:80]} (Status: {e['status']})" for e in open_escalations]
-        context_parts.append("Open Tickets:\n" + "\n".join(esc_lines))
-
-    # --- RAG Integration ---
-    # Append the user's name to the query to prioritize their specific documents over generic manuals
-    rag_query = f"{user['name']} {message}"
-    
-    # Search both user-specific documents and global knowledge base
-    rag_chunks = search_documents(user_id, rag_query, top_k=5)
-    from utils.kb_helper import search_kb_documents
-    kb_chunks = search_kb_documents(rag_query, top_k=5)
-    
-    # Interleave chunks so both get fair representation if available
-    all_chunks = []
-    for i in range(max(len(rag_chunks), len(kb_chunks))):
-        if i < len(rag_chunks):
-            all_chunks.append(rag_chunks[i])
-        if i < len(kb_chunks):
-            all_chunks.append(kb_chunks[i])
-            
-    if all_chunks:
-        context_parts.append("POLICY DOCUMENTS AND COMPANY KNOWLEDGE BASE:\n" + "\n\n---\n\n".join(all_chunks[:10]))
-    else:
-        context_parts.append("POLICY DOCUMENTS AND COMPANY KNOWLEDGE BASE:\n[No relevant documents found for this query.]")
-
-    customer_context = "\n\n".join(context_parts)
-    if _otp_just_verified:
-        customer_context += "\n\n[SYSTEM WARNING: THE USER HAS JUST SUCCESSFULLY VERIFIED THEIR IDENTITY VIA OTP. YOU MUST ANSWER THEIR QUERY DIRECTLY NOW. DO NOT ASK FOR OTP OR VERIFICATION AGAIN.]"
-
-    # --- Get recent conversation history for this session ---
-    history_rows = execute_query(
-        "SELECT user_message, ai_response FROM chat_history WHERE user_id = %s AND session_id = %s ORDER BY created_at ASC LIMIT 10",
-        (user_id, session_id), fetch="all"
-    )
-    conversation_history = []
-    for row in history_rows:
-        conversation_history.append({"role": "user", "content": row["user_message"]})
-        # Clean stored responses before feeding back into context
-        conversation_history.append({"role": "assistant", "content": _clean_response(row["ai_response"])})
+        input_data["policy_id"] = policies[0]["policy_number"]
         
-    if _otp_just_verified:
-        # Give the LLM closure on the OTP prompt so it doesn't think the user ignored it
-        conversation_history.append({"role": "user", "content": "<User entered correct OTP>"})
-        conversation_history.append({"role": "assistant", "content": "Identity verified. I will now answer the user's original query."})
-
-    # --- Generate AI response ---
-    ai_response = generate_chat_response(message, conversation_history, customer_context)
-    # Strip any JSON wrapper the LLM may have added
-    ai_response = _clean_response(ai_response)
+    supervisor_result = supervisor.run(input_data)
+    
+    ai_response = supervisor_result.get("response", "Processed.")
+    intent = supervisor_result.get("intent", "faq")
+    confidence = 1.0
 
     # Prepend verification success message if OTP was just verified
     if _otp_just_verified:
@@ -341,6 +289,7 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
         "intent": intent,
         "confidence": confidence,
         "guardrail_violated": False,
+        "worker_used": supervisor_result.get("worker_used", "UnknownAgent")
     }
 
 

@@ -18,13 +18,13 @@ except Exception:
 from utils.local_llm_helper import _chat
 
 # ─── Config ───────────────────────────────────────────────────────────────────
-ARANGO_HOST     = os.getenv("ARANGO_HOST", "https://a71fd1666bd9.arangodb.cloud:8529")
-ARANGO_DB       = os.getenv("ARANGO_DB", "underwriting_db")
-ARANGO_USERNAME = os.getenv("ARANGO_USERNAME", "root")
-ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "TnHBO0Y4FwKptmr6GxrL")
+ARANGO_HOST     = os.getenv("ARANGO_HOST", "")
+ARANGO_DB       = os.getenv("ARANGO_DB", "")
+ARANGO_USERNAME = os.getenv("ARANGO_USERNAME", "")
+ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-MISTRAL_MODEL   = os.getenv("MISTRAL_MODEL", "mistral")
-RELEVANCE_THRESHOLD = 70   # Documents below this score are rejected
+MISTRAL_MODEL   = os.getenv("MISTRAL_MODEL", "")
+RELEVANCE_THRESHOLD = int(os.getenv("RELEVANCE_THRESHOLD", "70"))
 
 # ─── ChromaDB Setup ───────────────────────────────────────────────────────────
 from chromadb.config import Settings
@@ -40,11 +40,19 @@ kb_collection = _chroma_client.get_or_create_collection(
 
 # ─── ArangoDB Setup ───────────────────────────────────────────────────────────
 _arango_client = ArangoClient(hosts=ARANGO_HOST)
+_db = None
 try:
-    _db = _arango_client.db(ARANGO_DB, username=ARANGO_USERNAME, password=ARANGO_PASSWORD)
+    # First connect to _system to check/create the database
+    _sys_db = _arango_client.db("_system", username=ARANGO_USERNAME, password=ARANGO_PASSWORD)
+    
+    db_name = ARANGO_DB if ARANGO_DB else "_system"
+    if db_name != "_system" and not _sys_db.has_database(db_name):
+        print(f"[INFO] ArangoDB '{db_name}' not found. Creating it automatically...")
+        _sys_db.create_database(db_name)
+        
+    _db = _arango_client.db(db_name, username=ARANGO_USERNAME, password=ARANGO_PASSWORD)
 except Exception as e:
-    print(f"Failed to connect to ArangoDB: {e}")
-    _db = None
+    print(f"Failed to connect to or create ArangoDB: {e}")
 
 def init_arango_collections():
     if not _db: return

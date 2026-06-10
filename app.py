@@ -86,11 +86,16 @@ def health():
 
 from utils.escalation_worker import check_escalations
 import asyncio
+from jobs.sla_monitor import run_sla_monitor
+from jobs.notification_processor import run_notification_processor
+from jobs.memory_cleanup import run_memory_cleanup
 
 @app.on_event("startup")
 async def startup_event():
     asyncio.create_task(check_escalations())
-
+    asyncio.create_task(run_sla_monitor())
+    asyncio.create_task(run_notification_processor())
+    asyncio.create_task(run_memory_cleanup())
 if __name__ == "__main__":
     uvicorn.run(
         "app:app",

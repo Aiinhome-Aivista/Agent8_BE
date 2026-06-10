@@ -40,5 +40,18 @@ try:
 except Exception as e:
     print('escalation_level may already exist:', e)
 
+# Execute V2 Agentic Architecture Schema
+print('Executing v2_agentic_architecture.sql...')
+try:
+    with open(os.path.join(os.path.dirname(__file__), 'v2_agentic_architecture.sql'), 'r') as f:
+        sql_script = f.read()
+        # Split by semicolon and execute each statement
+        for statement in sql_script.split(';'):
+            if statement.strip():
+                cursor.execute(statement)
+    print('V2 architecture tables created successfully.')
+except Exception as e:
+    print('Error executing V2 architecture script:', e)
+
 conn.commit()
 print('Database updated successfully!')
