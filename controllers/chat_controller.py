@@ -253,6 +253,7 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     }
     
     # Provide a default policy_id if policies exist (useful for RenewalAgent/PolicyAgent)
+    policies = execute_query("SELECT policy_number FROM policies WHERE user_id = %s AND status = 'ACTIVE' LIMIT 1", (user_id,), fetch="all")
     if policies:
         input_data["policy_id"] = policies[0]["policy_number"]
         

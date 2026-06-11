@@ -30,7 +30,8 @@ def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperatu
             response.raise_for_status()
             return response.json()  # Official API returns correct format
         except Exception as e:
-            print(f"Error calling official Mistral API: {e}")
+            error_details = response.text if 'response' in locals() else str(e)
+            print(f"Error calling official Mistral API: {e} - Details: {error_details}")
             return {"choices": [{"message": {"content": "{}"}}]}
 
     # --- LOCAL MODE ---

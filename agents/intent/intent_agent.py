@@ -7,8 +7,8 @@ class IntentAgent(BaseAgent):
         super().__init__("IntentAgent")
         
         # Load prompt template
-        template_record = fetch_one("SELECT template_text FROM prompt_templates WHERE agent_name = 'intent_classifier'")
-        self.prompt_template = template_record['template_text'] if template_record else ""
+        template_record = fetch_one("SELECT template_content FROM prompt_templates WHERE agent_name = 'intent_classifier'")
+        self.prompt_template = template_record['template_content'] if template_record else ""
 
     def execute(self, input_data):
         user_input = input_data.get("user_input", "")

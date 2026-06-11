@@ -2,7 +2,7 @@ import os
 from sentence_transformers import SentenceTransformer
 import chromadb
 from chromadb.config import Settings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 class RAGService:
     def __init__(self):
