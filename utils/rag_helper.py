@@ -7,9 +7,12 @@ import numpy as np
 # Compatibility shim for NumPy 2.0 where np.float_ was removed
 if not hasattr(np, "float_"):
     np.float_ = np.float64
+# pyrefly: ignore [missing-import]
 import chromadb
+# pyrefly: ignore [missing-import]
 from chromadb.config import Settings
 
+# pyrefly: ignore [missing-import]
 from chromadb.utils import embedding_functions
 _ef = embedding_functions.DefaultEmbeddingFunction()
 
@@ -46,9 +49,49 @@ def extract_text_from_file(file_path: str) -> str:
     """Extract text from a PDF or plain text file."""
     text = ""
     try:
+        # pyrefly: ignore [missing-import]
         import pdfplumber
         with pdfplumber.open(file_path) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                # If little or no text is extracted, it might be a scanned image. Use Pixtral OCR.
+                if not page_text or len(page_text.strip()) < 50:
+                    try:
+                        import base64
+                        from io import BytesIO
+                        import requests
+                        
+                        im = page.to_image(resolution=150).original
+                        buffered = BytesIO()
+                        im.save(buffered, format="PNG")
+                        img_str = base64.b64encode(buffered.getvalue()).decode()
+                        
+                        api_key = os.getenv("MISTRAL_API_KEY")
+                        if api_key:
+                            headers = {
+                                "Content-Type": "application/json",
+                                "Authorization": f"Bearer {api_key}"
+                            }
+                            payload = {
+                                "model": "pixtral-12b-2409",
+                                "messages": [
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "text", "text": "Extract all text and tables from this image precisely. Do not add any introductory or concluding text. Just output the extracted content."},
+                                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_str}"}}
+                                        ]
+                                    }
+                                ],
+                                "max_tokens": 1000
+                            }
+                            resp = requests.post("https://api.mistral.ai/v1/chat/completions", json=payload, headers=headers, timeout=60)
+                            if resp.status_code == 200:
+                                page_text = resp.json()["choices"][0]["message"]["content"]
+                    except Exception as e:
+                        print(f"Pixtral OCR error: {e}")
+                        
+                text += "\n" + (page_text or "")
     except Exception:
         # Fallback: read as plain text
         try:
@@ -101,9 +144,8 @@ def search_documents(user_id: int, query: str, top_k: int = 5) -> list:
         if collection.count() == 0:
             return []
 
-        query_embedding = _ef([query])[0]
         results = collection.query(
-            query_embeddings=[query_embedding],
+            query_texts=[query],
             n_results=min(top_k, collection.count())
         )
         return results.get("documents", [[]])[0]

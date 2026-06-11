@@ -2,6 +2,7 @@
 # Handles: POST /chat, GET /chat/history, DELETE /chat/history
 
 import uuid, json, re
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List
@@ -107,14 +108,30 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     email = token_data.get("email")
     session_id = body.session_id or str(uuid.uuid4())
     message = body.message.strip()
-    _otp_just_verified = False
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-
+        
     # --- Conversational OTP verification flow ---
+    _otp_just_verified = False
+    
+    otp_state = get_chat_otp_state(session_id)
+    requires_otp_flow = False
+    
     if not is_user_verified(email):
-        otp_state = get_chat_otp_state(session_id)
+        if otp_state is not None:
+            requires_otp_flow = True
+        else:
+            # Check intent early to see if OTP is needed
+            intent_data = detect_intent(message)
+            preliminary_intent = intent_data.get("intent", "faq")
+            sensitive_intents = [
+                "address_update", "contact_update", "email_update", 
+                "phone_update", "nominee_update", "policy_inquiry", "policy_period"
+            ]
+            if preliminary_intent in sensitive_intents:
+                requires_otp_flow = True
 
+    if requires_otp_flow:
         # STATE: No verification attempt yet — save query, ask for consent
         if otp_state is None:
             set_chat_otp_state(session_id, state="AWAITING_CONSENT", query=message)
@@ -126,7 +143,7 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
             execute_query(
                 "INSERT INTO chat_history (user_id, session_id, user_message, ai_response, detected_intent, confidence_score) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
-                (user_id, session_id, message, prompt_msg, "otp_consent_prompt", 1.0), fetch="none"
+                (user_id, session_id, message, prompt_msg, preliminary_intent, 1.0), fetch="none"
             )
             return {
                 "response": prompt_msg,
@@ -198,6 +215,10 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
                 # Let flow continue to normal chat logic below
                 # We'll add a prefix to the final response
                 _otp_just_verified = True
+                
+                # Update Supervisor's memory so it doesn't ask for another OTP
+                from services.memory.memory_service import MemoryService
+                MemoryService().update_session_memory(session_id, user_id, {"otp_verified": True, "state": "active"})
             else:
                 # Wrong or expired OTP
                 invalid_msg = (
@@ -253,7 +274,7 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     }
     
     # Provide a default policy_id if policies exist (useful for RenewalAgent/PolicyAgent)
-    policies = execute_query("SELECT policy_number FROM policies WHERE user_id = %s AND status = 'ACTIVE' LIMIT 1", (user_id,), fetch="all")
+    policies = execute_query("SELECT policy_number FROM policies WHERE customer_id = %s AND status = 'active' LIMIT 1", (user_id,), fetch="all")
     if policies:
         input_data["policy_id"] = policies[0]["policy_number"]
         
@@ -369,6 +390,7 @@ def get_sessions(token_data: dict = Depends(verify_token)):
 def get_customer_sessions_csr(customer_user_id: int, token_data: dict = Depends(verify_token)):
     """CSR-only: view sessions for an assigned customer."""
     if token_data.get("role") not in ("csr", "supervisor", "compliance"):
+        # pyrefly: ignore [missing-import]
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="CSR access only")
     csr_id = int(token_data["sub"])
@@ -378,6 +400,7 @@ def get_customer_sessions_csr(customer_user_id: int, token_data: dict = Depends(
         (csr_id, customer_user_id), fetch="one"
     )
     if not linked:
+        # pyrefly: ignore [missing-import]
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Not assigned to this customer")
     sessions = execute_query(

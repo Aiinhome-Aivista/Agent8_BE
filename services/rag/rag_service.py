@@ -10,7 +10,8 @@ class RAGService:
         self.encoder = SentenceTransformer(self.model_name)
         
         # Persistent storage configuration
-        self.persist_directory = r"d:\Agent-8\Agent8_BE\vectorstore\chroma_db"
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.persist_directory = os.path.join(base_dir, "vectorstore", "chroma_db")
         if not os.path.exists(self.persist_directory):
             os.makedirs(self.persist_directory)
             

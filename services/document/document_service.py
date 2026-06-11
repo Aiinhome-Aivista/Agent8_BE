@@ -7,7 +7,8 @@ from database.db import execute_query
 
 class DocumentService:
     def __init__(self):
-        self.output_dir = r"d:\Agent-8\Agent8_BE\uploads\generated_documents"
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.output_dir = os.path.join(base_dir, "uploads", "generated_documents")
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
 
@@ -31,8 +32,7 @@ class DocumentService:
         query = """
             INSERT INTO generated_documents (document_type, reference_id, file_path, metadata, created_at)
             VALUES (%s, %s, %s, %s, %s)
-            RETURNING id
         """
-        result = execute_query(query, (document_type, reference_id, file_path, json.dumps(content_data), datetime.now()))
+        result = execute_query(query, (document_type, reference_id, file_path, json.dumps(content_data), datetime.now()), fetch="none")
         
         return file_path

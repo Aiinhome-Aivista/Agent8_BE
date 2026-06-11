@@ -27,6 +27,9 @@ class AuthAgent(BaseAgent):
         
         # Store in session memory
         self.memory_service.update_session_memory(session_id, user_id, {"expected_otp": otp})
+        print(f"\n======================================")
+        print(f" [DEV MODE] OTP Generated: {otp} ")
+        print(f"======================================\n")
         
         # Queue notification (dummy recipient here, should fetch from DB)
         self.notification_service.queue_notification(

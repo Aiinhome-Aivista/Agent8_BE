@@ -20,18 +20,20 @@ class MemoryService:
                     updated_at = %s 
                 WHERE user_id = %s
             """
-            execute_query(query, (preferred_language, preferred_channel, datetime.now(), user_id))
+            execute_query(query, (preferred_language, preferred_channel, datetime.now(), user_id), fetch="none")
         else:
             query = """
                 INSERT INTO customer_preferences (user_id, preferred_language, preferred_channel) 
                 VALUES (%s, %s, %s)
             """
-            execute_query(query, (user_id, preferred_language, preferred_channel))
+            execute_query(query, (user_id, preferred_language, preferred_channel), fetch="none")
 
     def get_session_memory(self, session_id):
         query = "SELECT context_data FROM session_memory WHERE session_id = %s"
         result = fetch_one(query, (session_id,))
         if result and result.get('context_data'):
+            if isinstance(result['context_data'], str):
+                return json.loads(result['context_data'])
             return result['context_data']
         return {}
 
@@ -41,14 +43,14 @@ class MemoryService:
             # Merge context_data
             merged = {**existing, **context_data}
             query = "UPDATE session_memory SET context_data = %s, updated_at = %s WHERE session_id = %s"
-            execute_query(query, (json.dumps(merged), datetime.now(), session_id))
+            execute_query(query, (json.dumps(merged), datetime.now(), session_id), fetch="none")
         else:
             query = "INSERT INTO session_memory (session_id, user_id, context_data) VALUES (%s, %s, %s)"
-            execute_query(query, (session_id, user_id, json.dumps(context_data)))
+            execute_query(query, (session_id, user_id, json.dumps(context_data)), fetch="none")
 
     def log_episodic_event(self, user_id, event_type, event_summary):
         query = "INSERT INTO episodic_memory (user_id, event_type, event_summary) VALUES (%s, %s, %s)"
-        execute_query(query, (user_id, event_type, event_summary))
+        execute_query(query, (user_id, event_type, event_summary), fetch="none")
 
     def get_episodic_events(self, user_id, limit=5):
         query = "SELECT event_type, event_summary, created_at FROM episodic_memory WHERE user_id = %s ORDER BY created_at DESC LIMIT %s"

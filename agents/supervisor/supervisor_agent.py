@@ -10,6 +10,7 @@ from agents.document.document_agent import DocumentAgent
 from agents.guardrails.guardrail_agent import GuardrailAgent
 from agents.auth.auth_agent import AuthAgent
 from agents.approval.approval_agent import ApprovalAgent
+from agents.endorsement.endorsement_agent import EndorsementAgent
 from services.memory.memory_service import MemoryService
 
 class SupervisorAgent(BaseAgent):
@@ -28,7 +29,8 @@ class SupervisorAgent(BaseAgent):
             "ComplianceAgent": ComplianceAgent(),
             "DocumentAgent": DocumentAgent(),
             "AuthAgent": AuthAgent(),
-            "ApprovalAgent": ApprovalAgent()
+            "ApprovalAgent": ApprovalAgent(),
+            "EndorsementAgent": EndorsementAgent()
         }
         
         self.routing_matrix = {
@@ -36,14 +38,15 @@ class SupervisorAgent(BaseAgent):
             "policy_period": "PolicyAgent",
             "coverage_question": "RAGAgent",
             "faq": "RAGAgent",
+            "personal_faq": "RAGAgent",
             "renewal": "RenewalAgent",
-            "address_update": "EscalationAgent",
-            "phone_update": "EscalationAgent",
-            "email_update": "EscalationAgent",
-            "nominee_update": "EscalationAgent",
+            "address_update": "EndorsementAgent",
+            "phone_update": "EndorsementAgent",
+            "email_update": "EndorsementAgent",
+            "nominee_update": "EndorsementAgent",
             "complaint": "EscalationAgent",
             "human_agent_request": "EscalationAgent",
-            "policy_cancellation": "ComplianceAgent",
+            "policy_cancellation": "EscalationAgent",
             "document_request": "DocumentAgent",
             "verify_otp": "AuthAgent",
             "coverage_increase": "ApprovalAgent",
@@ -69,18 +72,25 @@ class SupervisorAgent(BaseAgent):
         self.memory_service.update_session_memory(session_id, user_id, {"history": [user_input], "last_intent": detected_intent})
 
         # 3. Route to Worker
+        # OTP Check for personal queries
+        if detected_intent == "personal_faq":
+            mem = self.memory_service.get_session_memory(session_id)
+            if not mem.get("otp_verified"):
+                self.memory_service.update_session_memory(session_id, user_id, {
+                    "state": "awaiting_otp", 
+                    "pending_intent": "personal_faq", 
+                    "pending_input": user_input
+                })
+                auth_input = {"action": "generate_otp", "user_id": user_id, "session_id": session_id}
+                auth_result = self.workers["AuthAgent"].run(auth_input, workflow_id=session_id)
+                return {
+                    "response": f"For security reasons, I need to verify your identity before accessing your personal documents. {auth_result.get('message', 'An OTP has been sent.')}",
+                    "session_id": session_id,
+                    "intent": "verify_otp",
+                    "worker_used": "AuthAgent"
+                }
+
         worker_name = self.routing_matrix.get(detected_intent)
-        
-        # Security Flow: Policy details require Auth
-        if worker_name == "PolicyAgent":
-            session_context = self.memory_service.get_session_memory(session_id)
-            if session_context.get("auth_status") != "VERIFIED":
-                worker_name = "AuthAgent"
-                detected_intent = "generate_otp"
-                input_data["action"] = "generate_otp"
-        elif detected_intent == "verify_otp":
-            input_data["action"] = "verify_otp"
-            input_data["otp"] = user_input.strip()
 
         if worker_name and worker_name in self.workers:
             worker = self.workers[worker_name]
@@ -89,7 +99,31 @@ class SupervisorAgent(BaseAgent):
             worker_input = self._prepare_worker_input(detected_intent, input_data, session_id)
             
             worker_output = worker.run(worker_input, workflow_id=session_id)
-            response = worker_output.get("response") or worker_output.get("message") or worker_output.get("ai_summary") or "Action processed."
+            
+            if detected_intent == "verify_otp" and worker_output.get("status") == "VERIFIED":
+                mem = self.memory_service.get_session_memory(session_id)
+                self.memory_service.update_session_memory(session_id, user_id, {"otp_verified": True, "state": "active"})
+                pending_intent = mem.get("pending_intent")
+                pending_input_text = mem.get("pending_input")
+                
+                if pending_intent and pending_intent in self.routing_matrix:
+                    pending_input_data = {
+                        "user_input": pending_input_text,
+                        "user_id": user_id,
+                        "session_id": session_id
+                    }
+                    pending_worker_name = self.routing_matrix[pending_intent]
+                    pending_worker = self.workers[pending_worker_name]
+                    pending_worker_input = self._prepare_worker_input(pending_intent, pending_input_data, session_id)
+                    pending_output = pending_worker.run(pending_worker_input, workflow_id=session_id)
+                    
+                    response = pending_output.get("response") or pending_output.get("message") or pending_output.get("ai_summary") or "Action processed."
+                    detected_intent = pending_intent
+                    worker_name = pending_worker_name
+                else:
+                    response = "OTP verified successfully. You can now proceed."
+            else:
+                response = worker_output.get("response") or worker_output.get("message") or worker_output.get("ai_summary") or "Action processed."
         else:
             response = "I'm not sure how to handle that right now."
 
@@ -113,7 +147,7 @@ class SupervisorAgent(BaseAgent):
             base_input["query_type"] = "policy_number"
         elif intent in ["policy_period"]:
             base_input["query_type"] = "policy_period"
-        elif intent in ["coverage_question", "faq"]:
+        elif intent in ["coverage_question", "faq", "personal_faq"]:
             base_input["query"] = original_input.get("user_input")
         elif intent in ["address_update", "phone_update", "email_update", "nominee_update", "complaint", "human_agent_request"]:
             base_input["issue_type"] = intent
@@ -122,5 +156,8 @@ class SupervisorAgent(BaseAgent):
         elif intent == "policy_cancellation":
             base_input["action"] = intent
             base_input["reference_id"] = original_input.get("policy_id")
+        elif intent == "verify_otp":
+            base_input["action"] = "verify_otp"
+            base_input["otp"] = original_input.get("user_input").strip()
             
         return base_input

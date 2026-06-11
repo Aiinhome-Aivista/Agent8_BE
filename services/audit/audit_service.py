@@ -8,7 +8,7 @@ class AuditService:
 
     def log_agent_execution(self, agent_name, workflow_id, input_data, output_data, execution_time_ms, status, error=None):
         query = """
-            INSERT INTO agent_executions (agent_name, workflow_id, input_data, output_data, execution_time_ms, status, error, created_at)
+            INSERT INTO agent_executions (agent_name, workflow_id, input_data, output_data, execution_time_ms, status, error_message, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         execute_query(query, (
