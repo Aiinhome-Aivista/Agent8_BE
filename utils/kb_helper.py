@@ -106,7 +106,7 @@ def extract_kg_from_text(text: str) -> dict:
     
     # We use local _chat fallback if MISTRAL_API_KEY is not set or we prefer local mistral
     try:
-        resp = _chat(model="mistral:latest", messages=[{"role": "system", "content": system}, {"role": "user", "content": text[:4000]}], max_tokens=1000, temperature=0.1)
+        resp = _chat(model=None, messages=[{"role": "system", "content": system}, {"role": "user", "content": text[:4000]}], max_tokens=1000, temperature=0.1)
         content = resp["choices"][0]["message"]["content"].strip()
         content = content.replace("```json", "").replace("```", "").strip()
         return json.loads(content)
@@ -122,7 +122,7 @@ def assess_document_relevance(text: str) -> dict:
         "Example: {\"score\": 85, \"reason\": \"The document discusses insurance policies...\"}"
     )
     try:
-        resp = _chat(model="mistral:latest", messages=[{"role": "system", "content": system}, {"role": "user", "content": text[:2000]}], max_tokens=150, temperature=0.0)
+        resp = _chat(model=None, messages=[{"role": "system", "content": system}, {"role": "user", "content": text[:2000]}], max_tokens=150, temperature=0.0)
         content = resp["choices"][0]["message"]["content"].strip()
         content = content.replace("```json", "").replace("```", "").strip()
         result = json.loads(content)

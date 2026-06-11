@@ -34,7 +34,7 @@ def detect_intent(message: str) -> dict:
     Returns a dict like {"intent": str, "confidence": float}.
     """
     try:
-        resp = _chat(model="mistral:latest", messages=_prepare_intent_prompt(message), max_tokens=60, temperature=0, json_mode=True)
+        resp = _chat(model=None, messages=_prepare_intent_prompt(message), max_tokens=60, temperature=0, json_mode=True)
         content = resp["choices"][0]["message"]["content"].strip()
         # Clean possible markdown fences
         content = content.replace("```json", "").replace("```", "").strip()
@@ -69,7 +69,7 @@ def generate_chat_response(user_message: str, conversation_history: list, custom
     messages = [{"role": "system", "content": system}]
     messages.extend(conversation_history[-10:])
     messages.append({"role": "user", "content": user_message})
-    resp = _chat(model="mistral:latest", messages=messages, max_tokens=400, temperature=0.7)
+    resp = _chat(model=None, messages=messages, max_tokens=400, temperature=0.7)
     return resp["choices"][0]["message"]["content"].strip()
 
 def summarize_conversation(messages: list) -> str:
@@ -81,7 +81,7 @@ def summarize_conversation(messages: list) -> str:
         "Summarize this insurance customer support conversation in 3-4 bullet points. "
         "Focus on: customer's issue, what was tried, why escalation is needed."
     )
-    resp = _chat(model="mistral:latest", messages=[{"role": "system", "content": system}, {"role": "user", "content": history_text}], max_tokens=200, temperature=0)
+    resp = _chat(model=None, messages=[{"role": "system", "content": system}, {"role": "user", "content": history_text}], max_tokens=200, temperature=0)
     return resp["choices"][0]["message"]["content"].strip()
 
 def answer_rag_question(question: str, context_chunks: list) -> str:
@@ -93,5 +93,5 @@ def answer_rag_question(question: str, context_chunks: list) -> str:
         "You are an insurance policy expert. Answer the question using ONLY the provided policy document excerpts. "
         "If the answer isn't in the documents, say so clearly. Be specific and cite relevant details."
     )
-    resp = _chat(model="mistral:latest", messages=[{"role": "system", "content": system}, {"role": "user", "content": f"POLICY DOCUMENTS:\n{context}\n\nQUESTION: {question}"}], max_tokens=350, temperature=0)
+    resp = _chat(model=None, messages=[{"role": "system", "content": system}, {"role": "user", "content": f"POLICY DOCUMENTS:\n{context}\n\nQUESTION: {question}"}], max_tokens=350, temperature=0)
     return resp["choices"][0]["message"]["content"].strip()
