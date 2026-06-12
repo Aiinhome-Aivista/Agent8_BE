@@ -2,6 +2,7 @@
 # GET /policies, GET /policies/{id}, GET /policies/{id}/coverage
 
 import json
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException
 from database.db import execute_query
 from middleware.jwt_auth import verify_token, require_role
@@ -131,10 +132,21 @@ def get_coverage(policy_id: int, token_data: dict = Depends(verify_token)):
         },
     }
 
-    coverage = coverage_map.get(policy["policy_type"], {"General Coverage": "As per policy terms"})
+    # Check for dynamically extracted coverage details
+    dynamic_coverage = None
+    if policy.get("policy_details") and isinstance(policy["policy_details"], str):
+        try:
+            details_json = json.loads(policy["policy_details"])
+            if details_json.get("coverage_details"):
+                dynamic_coverage = details_json["coverage_details"]
+        except Exception:
+            pass
+            
+    coverage = dynamic_coverage or coverage_map.get(policy["policy_type"], {"General Coverage": "As per policy terms"})
     return {
         "policy_number": policy["policy_number"],
         "policy_type": policy["policy_type"],
         "sum_insured": policy["coverage_amount"],
+        "premium": policy["premium"],
         "coverage_details": coverage,
     }

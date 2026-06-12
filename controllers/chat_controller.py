@@ -117,7 +117,10 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     otp_state = get_chat_otp_state(session_id)
     requires_otp_flow = False
     
-    if not is_user_verified(email):
+    from services.memory.memory_service import MemoryService
+    is_mem_verified = MemoryService().get_session_memory(session_id).get("otp_verified", False)
+    
+    if not is_user_verified(email) and not is_mem_verified:
         if otp_state is not None:
             requires_otp_flow = True
         else:

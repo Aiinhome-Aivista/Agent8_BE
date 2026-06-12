@@ -24,20 +24,27 @@ class EndorsementAgent(BaseAgent):
         
         last_message = chat_history[-1] if chat_history else ""
         
-        # Simple regex/extraction for email and address
-        new_value = "Updated via AI"
+        # Extract new value more robustly
+        new_value = None
+        last_lower = last_message.lower()
+        
         if issue_type == "email_update":
             import re
             emails = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', last_message)
             if emails:
                 new_value = emails[-1]
-            else:
-                new_value = "user.updated@email.com"
         else:
-            # Address/phone etc - just use the message or a dummy string for the test
-            parts = last_message.lower().split('to')
-            if len(parts) > 1:
-                new_value = parts[-1].strip()
+            if ' to ' in last_lower:
+                val = last_message[last_lower.rfind(' to ')+4:].strip()
+                if len(val) > 2 and "update" not in val.lower() and "change" not in val.lower():
+                    new_value = val
+                    
+        if not new_value:
+            return {
+                "response": "Please provide the new value in your request. For example: 'Update my address to 123 Main St'.",
+                "status": "Failed",
+                "ai_summary": "Failed to extract new value from user input."
+            }
         
         update_field_map = {
             "address_update": "address",
@@ -52,9 +59,9 @@ class EndorsementAgent(BaseAgent):
         user = execute_query(f"SELECT {db_field} FROM users WHERE id = %s", (user_id,), fetch="one")
         old_value = user.get(db_field, "") if user else ""
         
-        # Only update if the field actually exists in users table (address, phone, email)
-        if db_field in ["address", "phone", "email"]:
-            execute_query(f"UPDATE users SET {db_field} = %s WHERE id = %s", (new_value, user_id), fetch="none")
+        # We NO LONGER update the users table directly via AI to require CSR review.
+        # if db_field in ["address", "phone", "email"]:
+        #     execute_query(f"UPDATE users SET {db_field} = %s WHERE id = %s", (new_value, user_id), fetch="none")
         
         # Get active policies to add to endorsements table
         policies = execute_query(
@@ -64,15 +71,34 @@ class EndorsementAgent(BaseAgent):
         
         for pol in policies:
             execute_query(
-                "INSERT INTO endorsements (policy_id, user_id, update_type, old_value, new_value, status) VALUES (%s,%s,%s,%s,%s,'approved')",
+                "INSERT INTO endorsements (policy_id, user_id, update_type, old_value, new_value, status) VALUES (%s,%s,%s,%s,%s,'pending')",
                 (pol["id"], user_id, db_field, old_value, new_value), fetch="none"
             )
             
-        write_audit_log(user_id, f"{db_field.upper()}_UPDATE", "endorsement", None,
-                        f"AI Agent changed {db_field} from '{old_value}' to '{new_value}'", severity="sensitive")
+        # Create an Escalation Ticket for CSR Review
+        import uuid
+        ticket_string = f"TCK-{uuid.uuid4().hex[:8].upper()}"
+        ai_summary = f"User requested to update their {db_field} from '{old_value}' to '{new_value}'."
+        query = """
+            INSERT INTO escalations (ticket_id, user_id, issue, category, priority, status)
+            VALUES (%s, %s, %s, %s, 'medium', 'OPEN')
+        """
+        # fetch="none" returns the lastrowid
+        ticket_id = execute_query(query, (ticket_string, user_id, ai_summary, issue_type), fetch="none")
+        
+        # Track SLA for ticket
+        if ticket_id:
+            try:
+                from services.sla.sla_service import SLAService
+                SLAService().track_entity(entity_type='ticket', entity_id=ticket_id, rule_name='CSR Standard SLA')
+            except ImportError:
+                pass
+            
+        write_audit_log(user_id, f"{db_field.upper()}_UPDATE_REQUESTED", "endorsement", ticket_id,
+                        f"AI Agent created ticket to change {db_field} from '{old_value}' to '{new_value}'", severity="sensitive")
         
         return {
-            "response": f"Your {db_field} has been successfully updated to: {new_value}.",
-            "status": "Success",
-            "ai_summary": f"Updated {db_field} to {new_value}"
+            "response": f"I have raised a ticket ({ticket_string}) to update your {db_field} to: {new_value}. A human agent will review and process this shortly.",
+            "status": "Escalated",
+            "ai_summary": f"Requested update for {db_field} to {new_value}. Ticket created."
         }

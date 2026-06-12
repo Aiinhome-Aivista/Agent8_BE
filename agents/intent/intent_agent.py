@@ -48,7 +48,7 @@ class IntentAgent(BaseAgent):
         elif "phone" in lower_input and ("update" in lower_input or "change" in lower_input):
             detected_intent = "phone_update"
             confidence = 0.93
-        elif "address" in lower_input:
+        elif "address" in lower_input and ("update" in lower_input or "change" in lower_input):
             detected_intent = "address_update"
             confidence = 0.92
         elif "renew" in lower_input:

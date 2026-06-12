@@ -1,6 +1,7 @@
 # api/controllers/rag_controller.py
 import os
 import shutil
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
@@ -64,6 +65,36 @@ async def upload_document(
         "INSERT INTO uploaded_documents (user_id, policy_id, file_name, file_path, document_type, file_size) VALUES (%s,%s,%s,%s,%s,%s)",
         (user_id, policy_id, file.filename, file_path, document_type, len(content)), fetch="none"
     )
+
+    # Policy Extraction Logic
+    if document_type == "Policy Document" and extracted_text and extracted_text.strip():
+        from utils.local_llm_helper import _chat
+        import json
+        system_prompt = "You are a data extraction AI. Extract the following policy details from the given text and return it strictly as a JSON object: policy_number (string), policy_type (string, e.g. Health Insurance, Motor Insurance), premium (number), coverage_amount (number), start_date (YYYY-MM-DD), expiry_date (YYYY-MM-DD), insurer (string), and coverage_details (a JSON object mapping any other specific fields found in the document to their values, e.g. 'Age': '27', 'Medical Condition': 'Hypertension', 'Nominee Name': 'Anindita Mitra', etc.)."
+        try:
+            resp = _chat(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Text:\n{extracted_text[:4000]}"}
+                ],
+                json_mode=True
+            )
+            policy_data = json.loads(resp["choices"][0]["message"]["content"])
+            if policy_data.get("policy_number") and policy_data.get("coverage_amount"):
+                from datetime import date, timedelta
+                today = date.today()
+                s_date = policy_data.get("start_date") or today.isoformat()
+                e_date = policy_data.get("expiry_date") or (today + timedelta(days=365)).isoformat()
+                
+                execute_query(
+                    """INSERT INTO policies (policy_number, customer_id, policy_type, insurer, premium, coverage_amount, start_date, expiry_date, status, policy_details)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'active', %s) ON DUPLICATE KEY UPDATE premium=VALUES(premium), coverage_amount=VALUES(coverage_amount)""",
+                    (policy_data.get("policy_number"), user_id, policy_data.get("policy_type", "Health Insurance"), policy_data.get("insurer", "InsureAI"), policy_data.get("premium", 0), policy_data.get("coverage_amount"), s_date, e_date, json.dumps(policy_data)),
+                    fetch="none"
+                )
+                print(f"Successfully extracted and inserted policy: {policy_data.get('policy_number')}")
+        except Exception as e:
+            print(f"Failed to parse LLM response or insert policy: {e}")
 
     # Ingest into ChromaDB (PDF/TXT only)
     chunks_stored = 0
