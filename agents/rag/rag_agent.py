@@ -36,8 +36,16 @@ class RAGAgent(BaseAgent):
             
         context = " ".join([c if isinstance(c, str) else str(c) for c in all_context])
         
+        # Fetch session memory to know if it's the first turn
+        from services.memory.memory_service import MemoryService
+        session_id = input_data.get("session_id")
+        mem = MemoryService().get_session_memory(session_id) if session_id else {}
+        turn_count = mem.get("turn_count", 1)
+        
+        greeting_instruction = "Begin with a polite greeting (using the user's name if known)." if turn_count == 1 else "Do NOT greet the user or use their name, just answer the question directly to avoid repetition."
+
         # Generate answer using LLM
-        system_prompt = "You are a helpful insurance assistant. Answer the user's question accurately based ONLY on the provided context. Speak directly to the user in a natural, conversational tone. Do NOT use phrases like 'Based on the provided context' or 'According to the documents'. If the context does not contain the answer, say 'I cannot find this information.' Do not invent information."
+        system_prompt = f"You are a professional and helpful insurance assistant representing InsureAI. Answer the user's question accurately based ONLY on the provided context. Your tone must be strictly factual, objective, and professional. Do NOT use overly enthusiastic marketing language, fluff, or phrases like 'exciting features' or 'truly remarkable'. Present the core information using clear, well-structured bullet points so it is easy to read. {greeting_instruction} End by offering further assistance. Do NOT use phrases like 'Based on the provided context' or 'According to the documents'. If the context lacks the answer, politely apologize and state you cannot find it. Do not invent facts."
         user_prompt = f"Context:\n{context[:4000]}\n\nQuestion:\n{user_query}"
         
         try:
@@ -47,8 +55,8 @@ class RAGAgent(BaseAgent):
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                max_tokens=300,
-                temperature=0.1
+                max_tokens=500,
+                temperature=0.3
             )
             answer_text = resp["choices"][0]["message"]["content"].strip()
         except Exception as e:

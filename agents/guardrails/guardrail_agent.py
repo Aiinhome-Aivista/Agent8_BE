@@ -17,7 +17,6 @@ class GuardrailAgent(BaseAgent):
             
         # Basic regex fallback for PAN, AADHAAR, PHONE, EMAIL
         self.regex_patterns = {
-            "EMAIL": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
             "PHONE": r"\b\d{10}\b",
             "PAN": r"[A-Z]{5}[0-9]{4}[A-Z]{1}",
             "AADHAAR": r"\b\d{4}\s\d{4}\s\d{4}\b",
@@ -45,7 +44,7 @@ class GuardrailAgent(BaseAgent):
         masked_text = text
         
         if HAS_PRESIDIO:
-            results = self.analyzer.analyze(text=masked_text, entities=["PHONE_NUMBER", "EMAIL_ADDRESS", "US_SSN"], language='en')
+            results = self.analyzer.analyze(text=masked_text, entities=["PHONE_NUMBER", "US_SSN"], language='en')
             anonymized = self.anonymizer.anonymize(text=masked_text, analyzer_results=results)
             masked_text = anonymized.text
             

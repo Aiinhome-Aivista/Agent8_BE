@@ -68,8 +68,17 @@ class SupervisorAgent(BaseAgent):
         intent_data = self.intent_agent.run({"user_input": user_input})
         detected_intent = intent_data.get("intent", "unknown")
         
-        # Save intent to memory
-        self.memory_service.update_session_memory(session_id, user_id, {"history": [user_input], "last_intent": detected_intent})
+        # Save intent and history to memory
+        mem = self.memory_service.get_session_memory(session_id)
+        current_history = mem.get("history", [])
+        current_history.append(user_input)
+        turn_count = mem.get("turn_count", 0) + 1
+        
+        self.memory_service.update_session_memory(session_id, user_id, {
+            "history": current_history, 
+            "last_intent": detected_intent,
+            "turn_count": turn_count
+        })
 
         # 3. Route to Worker
         # OTP Check for personal queries
@@ -98,7 +107,7 @@ class SupervisorAgent(BaseAgent):
             # Map parameters based on worker
             worker_input = self._prepare_worker_input(detected_intent, input_data, session_id)
             
-            worker_output = worker.run(worker_input, workflow_id=session_id)
+            worker_output = worker.run(worker_input)
             
             if detected_intent == "verify_otp" and worker_output.get("status") == "VERIFIED":
                 mem = self.memory_service.get_session_memory(session_id)
