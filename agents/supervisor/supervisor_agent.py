@@ -100,6 +100,7 @@ class SupervisorAgent(BaseAgent):
                 }
 
         worker_name = self.routing_matrix.get(detected_intent)
+        was_otp_verified = False
 
         if worker_name and worker_name in self.workers:
             worker = self.workers[worker_name]
@@ -110,6 +111,7 @@ class SupervisorAgent(BaseAgent):
             worker_output = worker.run(worker_input)
             
             if detected_intent == "verify_otp" and worker_output.get("status") == "VERIFIED":
+                was_otp_verified = True
                 mem = self.memory_service.get_session_memory(session_id)
                 self.memory_service.update_session_memory(session_id, user_id, {"otp_verified": True, "state": "active"})
                 pending_intent = mem.get("pending_intent")
@@ -139,12 +141,17 @@ class SupervisorAgent(BaseAgent):
         # 4. Output Guardrails (PII Masking)
         masked_response = self.guardrail_agent.run({"text": response, "mode": "output"})
         
-        return {
+        result_dict = {
             "response": masked_response.get("masked_text", response),
             "session_id": session_id,
             "intent": detected_intent,
             "worker_used": worker_name
         }
+        
+        if was_otp_verified and 'pending_input_text' in locals() and pending_input_text:
+            result_dict["original_query"] = pending_input_text
+            
+        return result_dict
 
     def _prepare_worker_input(self, intent, original_input, session_id):
         base_input = {

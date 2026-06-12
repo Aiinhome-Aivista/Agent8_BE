@@ -286,6 +286,9 @@ def chat(body: ChatRequest, token_data: dict = Depends(verify_token)):
     ai_response = supervisor_result.get("response", "Processed.")
     intent = supervisor_result.get("intent", "faq")
     confidence = 1.0
+    
+    if "original_query" in supervisor_result:
+        message = supervisor_result["original_query"]
 
     # Prepend verification success message if OTP was just verified
     if _otp_just_verified:
