@@ -400,9 +400,9 @@ def get_customer_sessions_csr(customer_user_id: int, token_data: dict = Depends(
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="CSR access only")
     csr_id = int(token_data["sub"])
-    # Verify this CSR has an escalation linked to the customer
+    # Verify this CSR has an escalation linked to the customer (assigned to them or unassigned)
     linked = execute_query(
-        "SELECT id FROM escalations WHERE assigned_to=%s AND user_id=%s LIMIT 1",
+        "SELECT id FROM escalations WHERE (assigned_to=%s OR assigned_to IS NULL) AND user_id=%s LIMIT 1",
         (csr_id, customer_user_id), fetch="one"
     )
     if not linked:

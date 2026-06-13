@@ -1,4 +1,5 @@
 # api/controllers/dashboard_controller.py
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
 from database.db import execute_query
 from middleware.jwt_auth import verify_token
@@ -152,6 +153,7 @@ def customer_dashboard(token_data: dict = Depends(verify_token)):
 def supervisor_dashboard(token_data: dict = Depends(verify_token)):
     role = token_data["role"]
     if role not in ("supervisor", "compliance"):
+        # pyrefly: ignore [missing-import]
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -200,16 +202,17 @@ def supervisor_dashboard(token_data: dict = Depends(verify_token)):
 @router.get("/csr")
 def csr_dashboard(token_data: dict = Depends(verify_token)):
     if token_data["role"] != "csr":
+        # pyrefly: ignore [missing-import]
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="CSR only")
     user_id = int(token_data["sub"])
-    assigned = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE assigned_to=%s", (user_id,), fetch="one")
-    open_mine = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE assigned_to=%s AND status='open'", (user_id,), fetch="one")
-    in_prog = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE assigned_to=%s AND status='in-progress'", (user_id,), fetch="one")
-    resolved_today = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE assigned_to=%s AND status='resolved' AND DATE(updated_at)=CURDATE()", (user_id,), fetch="one")
+    assigned = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE (assigned_to=%s OR assigned_to IS NULL)", (user_id,), fetch="one")
+    open_mine = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE (assigned_to=%s OR assigned_to IS NULL) AND status='open'", (user_id,), fetch="one")
+    in_prog = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE (assigned_to=%s OR assigned_to IS NULL) AND status='in-progress'", (user_id,), fetch="one")
+    resolved_today = execute_query("SELECT COUNT(*) as cnt FROM escalations WHERE (assigned_to=%s OR assigned_to IS NULL) AND status='resolved' AND DATE(updated_at)=CURDATE()", (user_id,), fetch="one")
     recent = execute_query(
         """SELECT e.*, u.name as customer_name FROM escalations e JOIN users u ON e.user_id=u.id
-           WHERE e.assigned_to=%s AND e.status IN ('open','in-progress')
+           WHERE (e.assigned_to=%s OR e.assigned_to IS NULL) AND e.status IN ('open','in-progress')
            ORDER BY FIELD(e.priority,'critical','high','medium','low'), e.created_at DESC LIMIT 10""",
         (user_id,), fetch="all"
     )
