@@ -2,82 +2,322 @@ from agents.base_agent import BaseAgent
 from utils.kb_helper import search_kb_documents
 from utils.rag_helper import search_documents
 from utils.local_llm_helper import _chat
+from services.memory.memory_service import MemoryService
+
 import os
+import re
+
 
 class RAGAgent(BaseAgent):
     def __init__(self):
         super().__init__("RAGAgent")
         self.model = os.getenv("MISTRAL_MODEL", "")
+        
+        # Initialize CrossEncoder for reranking
+        try:
+            # pyrefly: ignore [missing-import]
+            from sentence_transformers import CrossEncoder
+            self.reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        except Exception as e:
+            print(f"Warning: Could not load reranker: {e}")
+            self.reranker = None
 
     def execute(self, input_data):
-        user_query = input_data.get("query")
+        user_query = input_data.get("query", "").strip()
         user_id = input_data.get("user_id")
         intent = input_data.get("intent")
-        
-        # 1. Search Knowledge Base (company-wide documents uploaded by CSR)
-        kb_results = search_kb_documents(user_query, top_k=5)
-        
-        # 2. Search user's personal documents
+        session_id = input_data.get("session_id")
+
+        # --------------------------------------------------
+        # Retrieve KB Documents
+        # --------------------------------------------------
+        kb_results = search_kb_documents(
+            user_query,
+            top_k=15
+        )
+
+        # --------------------------------------------------
+        # Retrieve Personal Documents
+        # --------------------------------------------------
         personal_results = []
+
         if user_id and intent == "personal_faq":
             try:
-                personal_results = search_documents(user_id, user_query, top_k=5)
+                personal_results = search_documents(
+                    user_id,
+                    user_query,
+                    top_k=15
+                )
             except Exception:
                 personal_results = []
-        
-        # Combine results
+
+        # --------------------------------------------------
+        # Merge Results
+        # --------------------------------------------------
         all_context = []
+
         if personal_results:
             all_context.extend(personal_results)
+
         if kb_results:
             all_context.extend(kb_results)
-        
-        if not all_context:
-            return {"response": "I do not have that information in my knowledge base. Please upload relevant documents first."}
-            
-        context = " ".join([c if isinstance(c, str) else str(c) for c in all_context])
-        
-        # Fetch session memory to know if it's the first turn
-        from services.memory.memory_service import MemoryService
-        session_id = input_data.get("session_id")
-        mem = MemoryService().get_session_memory(session_id) if session_id else {}
-        turn_count = mem.get("turn_count", 1)
-        
-        greeting_instruction = "Begin with a polite greeting." if turn_count == 1 else "Do NOT greet the user again."
 
-        # Generate answer using LLM
-        system_prompt = f"You are a professional and helpful insurance assistant representing InsureAI. Answer the user's question accurately in a natural, conversational manner based ONLY on the provided context. Your tone must be friendly yet professional. Do not just output a raw bulleted list—always introduce your answer with a natural conversational sentence. Use markdown formatting to make your response look highly professional. Specifically, **bold** the key terms or titles in your bullet points. CRITICAL: When describing features, do NOT over-generalize or over-promise. You must accurately reflect conditions or caveats. For example: Do NOT list 'Medical Inflation Protection' as a separate feature; instead, combine it as '- **5-Year Tenure Option:** Provides long-term coverage and helps protect against the impact of medical inflation.' For 'Endless Sum Insured', use the wording '- **Endless Sum Insured:** Provides a once-in-a-lifetime hospitalization claim without any base sum insured limit, subject to policy terms and eligibility.' Do not summarize away important limitations. Structure the core information clearly. {greeting_instruction} End by offering further assistance. IMPORTANT: Do NOT mention document names or use phrases like 'Based on the document...' in your sentences. If the context lacks the answer, politely apologize and state you cannot find it. Do not invent facts."
-        user_prompt = f"Context:\n{context[:4000]}\n\nQuestion:\n{user_query}"
-        
-        import re
+        # --------------------------------------------------
+        # No Results Found
+        # --------------------------------------------------
+        if not all_context:
+            return {
+                "response": (
+                    "I couldn't find any relevant information "
+                    "in the available documents."
+                ),
+                "context_used": "",
+                "sources": []
+            }
+
+        # --------------------------------------------------
+        # Remove Duplicate Chunks
+        # --------------------------------------------------
+        unique_context = []
+        seen = set()
+
+        for chunk in all_context:
+            chunk_text = str(chunk).strip()
+
+            if chunk_text and chunk_text not in seen:
+                seen.add(chunk_text)
+                unique_context.append(chunk_text)
+
+        all_context = unique_context
+
+        # --------------------------------------------------
+        # Rerank Context Chunks
+        # --------------------------------------------------
+        if getattr(self, 'reranker', None) and all_context:
+            try:
+                pairs = [[user_query, chunk] for chunk in all_context]
+                scores = self.reranker.predict(pairs)
+                
+                # Combine scores with chunks and sort descending
+                scored_chunks = list(zip(scores, all_context))
+                scored_chunks.sort(key=lambda x: x[0], reverse=True)
+                
+                # Keep top 5 most relevant chunks
+                all_context = [chunk for score, chunk in scored_chunks[:5]]
+            except Exception as e:
+                print(f"Reranking failed: {e}")
+                all_context = all_context[:5]
+        else:
+            all_context = all_context[:5]
+
+        # --------------------------------------------------
+        # Format Context
+        # --------------------------------------------------
+        formatted_chunks = []
+
+        for idx, chunk in enumerate(all_context):
+            formatted_chunks.append(
+                f"DOCUMENT CHUNK {idx + 1}:\n{chunk}"
+            )
+
+        context = "\n\n".join(formatted_chunks)
+
+        # --------------------------------------------------
+        # Session Memory
+        # --------------------------------------------------
+        mem = (
+            MemoryService().get_session_memory(session_id)
+            if session_id
+            else {}
+        )
+
+        turn_count = mem.get("turn_count", 1)
+
+        greeting_instruction = (
+            "Start with a short greeting."
+            if turn_count == 1
+            else "Do not greet the user again."
+        )
+
+        # --------------------------------------------------
+        # Detect Factual Questions
+        # --------------------------------------------------
+        factual_keywords = [
+            "maximum",
+            "minimum",
+            "entry age",
+            "age",
+            "policy term",
+            "sum insured",
+            "waiting period",
+            "coverage",
+            "covered",
+            "what is",
+            "does",
+            "how much",
+            "eligible",
+            "limit"
+        ]
+
+        factual_mode = any(
+            keyword in user_query.lower()
+            for keyword in factual_keywords
+        )
+
+        if factual_mode:
+            answer_style = """
+This is a factual lookup question.
+
+Answer directly in 1-3 sentences.
+
+Do not use marketing language.
+
+Do not add unnecessary explanation.
+"""
+        else:
+            answer_style = """
+Use bullet points when appropriate.
+
+Keep the answer concise, professional, and easy to read.
+"""
+
+        # --------------------------------------------------
+        # System Prompt
+        # --------------------------------------------------
+        system_prompt = f"""
+You are InsureAI, a professional insurance assistant.
+
+{greeting_instruction}
+
+STRICT RULES:
+
+1. Answer ONLY using the provided context.
+
+2. NEVER guess.
+
+3. NEVER invent facts.
+
+4. NEVER infer information that is not explicitly stated.
+
+5. If the answer is not clearly present in the context, respond exactly:
+
+"I couldn't find that information in the available documents."
+
+6. If multiple values exist, use ONLY the value directly related to the user's question.
+
+7. Do NOT confuse different cover types.
+
+Example:
+- Hospitalization Cover Maximum Entry Age = No Limit
+- Personal Accident Cover Maximum Entry Age = 65 Years
+
+Use the correct value based on the user's question.
+
+8. Do NOT mention:
+   - document names
+   - file names
+   - brochure names
+
+9. Do NOT say:
+   - "According to the document"
+   - "Based on the brochure"
+   - "The uploaded PDF says"
+
+10. Accuracy is more important than sounding helpful.
+
+11. Never over-promise benefits.
+
+12. Mention conditions or eligibility requirements whenever they appear in the context.
+
+13. Use markdown formatting.
+
+STYLE:
+
+- Professional
+- Friendly
+- Natural
+
+{answer_style}
+
+End with:
+"Please let me know if you need any further assistance."
+"""
+
+        # --------------------------------------------------
+        # User Prompt
+        # --------------------------------------------------
+        user_prompt = f"""
+CONTEXT:
+
+{context[:5000]}
+
+QUESTION:
+
+{user_query}
+"""
+
+        # --------------------------------------------------
+        # Generate Response
+        # --------------------------------------------------
         try:
             resp = _chat(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt
+                    }
                 ],
                 max_tokens=500,
-                temperature=0.3
+                temperature=0.0
             )
-            answer_text = resp["choices"][0]["message"]["content"].strip()
-            
-            # Programmatically append source tags so the UI badge always renders
-            sources = list(set(re.findall(r"\[Source:\s*(.+?)\]", context)))
+
+            answer_text = (
+                resp["choices"][0]["message"]["content"]
+                .strip()
+            )
+
+            # Remove source tags generated by LLM
+            answer_text = re.sub(
+                r"\[Source:\s*.+?\]",
+                "",
+                answer_text
+            ).strip()
+
+            # Extract source tags from context
+            sources = list(
+                set(
+                    re.findall(
+                        r"\[Source:\s*(.+?)\]",
+                        context
+                    )
+                )
+            )
+
             if sources:
-                source_tags = " ".join([f"[Source: {s}]" for s in sources])
-                # Remove any tags the LLM might have output on its own to prevent duplicates
-                answer_text = re.sub(r"\[Source:\s*.+?\]", "", answer_text).strip()
-                answer_text = f"{answer_text}\n\n{source_tags}"
+                source_tags = " ".join(
+                    [
+                        f"[Source: {source}]"
+                        for source in sources
+                    ]
+                )
+
+                answer_text += f"\n\n{source_tags}"
+
         except Exception as e:
-            answer_text = f"Error generating response: {str(e)}"
-        
-        formatted_response = answer_text
-        
+            answer_text = (
+                f"Error generating response: {str(e)}"
+            )
+
         return {
-            "response": formatted_response,
+            "response": answer_text,
             "context_used": context[:2000],
-            "sources": [f"chunk_{i}" for i in range(len(all_context))]
+            "sources": [
+                f"chunk_{i}"
+                for i in range(len(all_context))
+            ]
         }
-
-
