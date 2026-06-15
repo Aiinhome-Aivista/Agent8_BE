@@ -41,7 +41,7 @@ class RAGAgent(BaseAgent):
         # --------------------------------------------------
         personal_results = []
 
-        if user_id and intent == "personal_faq":
+        if user_id and intent in ["personal_faq", "profile_summary"]:
             try:
                 personal_results = search_documents(
                     user_id,
@@ -55,12 +55,18 @@ class RAGAgent(BaseAgent):
         # Merge Results
         # --------------------------------------------------
         all_context = []
+        chunk_source_map = {}
 
         if personal_results:
-            all_context.extend(personal_results)
+            for c in personal_results:
+                all_context.append(c)
+                chunk_source_map[c] = True
 
         if kb_results:
-            all_context.extend(kb_results)
+            for c in kb_results:
+                all_context.append(c)
+                if c not in chunk_source_map:
+                    chunk_source_map[c] = False
 
         # --------------------------------------------------
         # No Results Found
@@ -98,8 +104,18 @@ class RAGAgent(BaseAgent):
                 pairs = [[user_query, chunk] for chunk in all_context]
                 scores = self.reranker.predict(pairs)
                 
-                # Combine scores with chunks and sort descending
-                scored_chunks = list(zip(scores, all_context))
+                # Boost personal documents for personal queries
+                personal_keywords = ["my", "mine", "policy", "insured", "premium", "nominee", "bill", "claim", "profile", "summary"]
+                is_personal_query = any(w in user_query.lower().split() for w in personal_keywords)
+                
+                scored_chunks = []
+                for chunk, score in zip(all_context, scores):
+                    is_personal = chunk_source_map.get(chunk, False)
+                    if is_personal_query and is_personal:
+                        score += 10.0 # massive boost to ensure personal docs outrank brochure
+                    scored_chunks.append((score, chunk))
+                
+                # Sort descending
                 scored_chunks.sort(key=lambda x: x[0], reverse=True)
                 
                 # Keep top 5 most relevant chunks

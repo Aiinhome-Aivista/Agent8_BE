@@ -21,21 +21,23 @@ class EscalationAgent(BaseAgent):
         # Simulated AI Summary generation
         ai_summary = f"User wants to {issue_type}. Escalation recommended."
         
+        import uuid
+        ticket_id_str = f"TKT-{str(uuid.uuid4())[:8].upper()}"
+        
         # Create Ticket
         query = """
-            INSERT INTO escalations (user_id, issue_type, ai_summary, status)
-            VALUES (%s, %s, %s, 'OPEN') RETURNING id
+            INSERT INTO escalations (ticket_id, user_id, category, issue, status)
+            VALUES (%s, %s, %s, %s, 'OPEN')
         """
-        result = execute_query(query, (user_id, issue_type, ai_summary))
-        ticket_id = result[0]['id'] if result else None
+        db_id = execute_query(query, (ticket_id_str, user_id, issue_type, ai_summary), fetch="none")
         
-        if ticket_id:
+        if db_id:
             # Track SLA
-            self.sla_service.track_entity(entity_type='ticket', entity_id=ticket_id, rule_name='CSR Standard SLA')
+            self.sla_service.track_entity(entity_type='ticket', entity_id=db_id, rule_name='CSR Standard SLA')
             
             return {
                 "status": "Escalated",
-                "ticket_id": ticket_id,
+                "ticket_id": ticket_id_str,
                 "ai_summary": ai_summary,
                 "assigned_to": "CSR Pool"
             }

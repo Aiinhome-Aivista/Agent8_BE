@@ -39,6 +39,7 @@ class SupervisorAgent(BaseAgent):
             "coverage_question": "RAGAgent",
             "faq": "RAGAgent",
             "personal_faq": "RAGAgent",
+            "profile_summary": "RAGAgent",
             "renewal": "RenewalAgent",
             "address_update": "EndorsementAgent",
             "phone_update": "EndorsementAgent",
@@ -82,12 +83,12 @@ class SupervisorAgent(BaseAgent):
 
         # 3. Route to Worker
         # OTP Check for personal queries
-        if detected_intent == "personal_faq":
+        if detected_intent in ["personal_faq", "profile_summary"]:
             mem = self.memory_service.get_session_memory(session_id)
             if not mem.get("otp_verified"):
                 self.memory_service.update_session_memory(session_id, user_id, {
                     "state": "awaiting_otp", 
-                    "pending_intent": "personal_faq", 
+                    "pending_intent": detected_intent, 
                     "pending_input": user_input
                 })
                 auth_input = {"action": "generate_otp", "user_id": user_id, "session_id": session_id}
@@ -164,7 +165,7 @@ class SupervisorAgent(BaseAgent):
             base_input["query_type"] = "policy_number"
         elif intent in ["policy_period"]:
             base_input["query_type"] = "policy_period"
-        elif intent in ["coverage_question", "faq", "personal_faq"]:
+        elif intent in ["coverage_question", "faq", "personal_faq", "profile_summary"]:
             base_input["query"] = original_input.get("user_input")
         elif intent in ["address_update", "phone_update", "email_update", "nominee_update", "complaint", "human_agent_request"]:
             base_input["issue_type"] = intent

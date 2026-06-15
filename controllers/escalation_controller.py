@@ -177,6 +177,14 @@ def update_escalation(esc_id: int, body: EscalationUpdate, token_data: dict = De
     if updates:
         params.append(esc_id)
         execute_query(f"UPDATE escalations SET {', '.join(updates)} WHERE id = %s", tuple(params), fetch="none")
+        
+        # Send a notification if the ticket was resolved
+        if body.status == "resolved":
+            execute_query(
+                "INSERT INTO notifications (user_id, title, message, type, status) VALUES (%s, %s, %s, 'update', 'unread')",
+                (esc["user_id"], "Ticket Resolved", f"Your ticket {esc['ticket_id']} has been resolved."),
+                fetch="none"
+            )
 
     if body.note:
         execute_query(

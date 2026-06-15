@@ -51,6 +51,12 @@ class IntentAgent(BaseAgent):
         elif "address" in lower_input and ("update" in lower_input or "change" in lower_input):
             detected_intent = "address_update"
             confidence = 0.92
+        elif any(w in lower_input for w in ["insurance profile", "customer profile", "policy summary", "my profile"]):
+            detected_intent = "profile_summary"
+            confidence = 0.95
+        elif "nominee" in lower_input and ("update" in lower_input or "change" in lower_input):
+            detected_intent = "nominee_update"
+            confidence = 0.95
         elif "renew" in lower_input:
             detected_intent = "renewal"
             confidence = 0.94
@@ -63,7 +69,7 @@ class IntentAgent(BaseAgent):
         elif any(w in lower_input for w in ["escalate", "human", "agent", "manager", "speak"]):
             detected_intent = "human_agent_request"
             confidence = 0.92
-        elif any(w in lower_input for w in ["my", "i ", "uploaded", "approved", "claim"]):
+        elif any(w in lower_input for w in ["my", "i ", "uploaded", "approved", "claim", "this policy", "nominee"]):
             detected_intent = "personal_faq"
             confidence = 0.80
         elif any(w in lower_input for w in ["what", "how", "tell", "explain", "key", "about"]):

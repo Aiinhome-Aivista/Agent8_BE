@@ -13,19 +13,19 @@ class PolicyAgent(BaseAgent):
         # Since I'm not to delete/modify existing tables, I'll assume standard columns
         
         if query_type == "policy_number":
-            policy = fetch_one("SELECT policy_number FROM policies WHERE user_id = %s", (user_id,))
+            policy = fetch_one("SELECT policy_number FROM policies WHERE customer_id = %s", (user_id,))
             return {"response": f"Your policy number is {policy['policy_number']}" if policy else "No policy found."}
         
         elif query_type == "policy_period":
-            policy = fetch_one("SELECT start_date, end_date FROM policies WHERE user_id = %s", (user_id,))
+            policy = fetch_one("SELECT start_date, expiry_date FROM policies WHERE customer_id = %s", (user_id,))
             if policy:
-                return {"response": f"Your policy period is from {policy['start_date']} to {policy['end_date']}"}
+                return {"response": f"Your policy period is from {policy['start_date']} to {policy['expiry_date']}"}
             return {"response": "No policy period information found."}
             
         elif query_type == "coverage":
-            policy = fetch_one("SELECT coverage_details FROM policies WHERE user_id = %s", (user_id,))
+            policy = fetch_one("SELECT policy_details FROM policies WHERE customer_id = %s", (user_id,))
             if policy:
-                return {"response": f"Your coverage includes: {policy['coverage_details']}"}
+                return {"response": f"Your coverage includes: {policy['policy_details']}"}
             return {"response": "No coverage information found."}
             
         else:

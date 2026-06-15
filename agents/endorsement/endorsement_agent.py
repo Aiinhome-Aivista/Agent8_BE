@@ -56,8 +56,11 @@ class EndorsementAgent(BaseAgent):
         db_field = update_field_map.get(issue_type, "address")
         
         # Apply the endorsement (similar to endorsement_controller)
-        user = execute_query(f"SELECT {db_field} FROM users WHERE id = %s", (user_id,), fetch="one")
-        old_value = user.get(db_field, "") if user else ""
+        if db_field == "nominee":
+            old_value = ""
+        else:
+            user = execute_query(f"SELECT {db_field} FROM users WHERE id = %s", (user_id,), fetch="one")
+            old_value = user.get(db_field, "") if user else ""
         
         # We NO LONGER update the users table directly via AI to require CSR review.
         # if db_field in ["address", "phone", "email"]:
