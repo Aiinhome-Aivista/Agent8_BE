@@ -110,6 +110,14 @@ class RAGAgent(BaseAgent):
         else:
             all_context = all_context[:5]
 
+        print("\n======================")
+        print("QUERY:", user_query)
+        print("======================")
+
+        for i, chunk in enumerate(all_context):
+            print(f"\n----- CHUNK {i+1} -----")
+            print(chunk)
+
         # --------------------------------------------------
         # Format Context
         # --------------------------------------------------
@@ -229,7 +237,16 @@ Use the correct value based on the user's question.
 
 12. Mention conditions or eligibility requirements whenever they appear in the context.
 
-13. Use markdown formatting.
+13. Do NOT apply conditions or footnotes from one benefit to another benefit.
+
+14. A condition must ONLY be mentioned if it is explicitly tied to the exact benefit being discussed.
+
+15. If the user asks whether a condition applies to a benefit:
+- Check whether the condition is explicitly attached to that exact benefit.
+- If the condition belongs to another benefit, answer: "No, that condition applies to [Correct Benefit], not [Requested Benefit]."
+- Never transfer footnotes, conditions, waiting periods, age limits, or eligibility criteria from one benefit to another.
+
+16. Use markdown formatting.
 
 STYLE:
 

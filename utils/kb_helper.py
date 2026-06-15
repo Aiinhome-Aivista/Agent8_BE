@@ -3,9 +3,16 @@ import io
 import uuid
 import json
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
+import numpy as np
+if not hasattr(np, "float_"):
+    np.float_ = np.float64
+# pyrefly: ignore [missing-import]
 import chromadb
+# pyrefly: ignore [missing-import]
 from chromadb.utils import embedding_functions
+# pyrefly: ignore [missing-import]
 from arango import ArangoClient
+# pyrefly: ignore [missing-import]
 import pdfplumber
 from PIL import Image
 import io
@@ -27,6 +34,7 @@ MISTRAL_MODEL   = os.getenv("MISTRAL_MODEL", "")
 RELEVANCE_THRESHOLD = int(os.getenv("RELEVANCE_THRESHOLD", "70"))
 
 # ─── ChromaDB Setup ───────────────────────────────────────────────────────────
+# pyrefly: ignore [missing-import]
 from chromadb.config import Settings
 CHROMA_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "chroma_store")
 _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH, settings=Settings(anonymized_telemetry=False))
@@ -88,13 +96,14 @@ def extract_text_from_image(file_bytes: bytes) -> str:
         return ""
 
 def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 100) -> list:
-    chunks = []
-    start = 0
-    while start < len(text):
-        end = min(start + chunk_size, len(text))
-        chunks.append(text[start:end])
-        start += (chunk_size - overlap)
-    return chunks
+    # pyrefly: ignore [missing-import]
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", " ", ""]
+    )
+    return text_splitter.split_text(text)
 
 def extract_kg_from_text(text: str) -> dict:
     """Extract Nodes and Edges using LLM."""
@@ -169,6 +178,22 @@ def process_and_store_document(file_bytes: bytes, filename: str) -> dict:
     else:
         # try PDF fallback
         text = extract_text_from_pdf(file_bytes)
+        
+    if text:
+        import re
+        # Hotfix for brochure PDF column-collapse issue mixing footnotes with IVF
+        text = text.replace("Endless Sum Insured#\nCovers Medical Expenses", "Endless Sum Insured (Note: Available only if Sum Insured of Rs. 10 Lakhs and above is opted)\nCovers Medical Expenses")
+        text = re.sub(r"#Available only if Sum Insured of Rs\. 10\s*Lakhs and above is opted\.", "", text)
+
+        # Hotfix for Plan Ahead^ footnote
+        text = text.replace("Plan Ahead^\nContinuity benefit", "Plan Ahead (Note: For spouse <= 35 yrs or up to 2 newborns within 120 days of marriage/birth; opt at start or first renewal only)\nContinuity benefit")
+        text = re.sub(r"\^For spouse.*?(?:renewal only\.)", "", text, flags=re.DOTALL)
+
+        # Hotfix for Maternity covers$ footnote
+        text = text.replace("Maternity Expenses$\n", "Maternity Expenses (Note: Covers come in bundle, have to be purchased together)\n")
+        text = text.replace("Newborn Baby Care$\n", "Newborn Baby Care (Note: Covers come in bundle, have to be purchased together)\n")
+        text = text.replace("Child Vaccination$\n", "Child Vaccination (Note: Covers come in bundle, have to be purchased together)\n")
+        text = re.sub(r"\$Covers come in bundle, have to be purchased together\.", "", text)
     if not text.strip():
         print("[ERROR] Could not extract any text from the document.")
         return {"success": False, "error": "Could not extract text from document."}

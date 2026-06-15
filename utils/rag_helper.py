@@ -32,14 +32,14 @@ def get_collection(user_id: int):
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list:
     """Split text into overlapping chunks for better retrieval."""
-    words = text.split()
-    chunks = []
-    i = 0
-    while i < len(words):
-        chunk = " ".join(words[i:i + chunk_size])
-        chunks.append(chunk)
-        i += chunk_size - overlap
-    return chunks
+    # pyrefly: ignore [missing-import]
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=overlap,
+        separators=["\n\n", "\n", " ", ""]
+    )
+    return text_splitter.split_text(text)
 
 def embed_text(texts: list) -> list:
     """Generate embeddings for a list of text strings using default model."""
