@@ -148,7 +148,13 @@ def search_documents(user_id: int, query: str, top_k: int = 5) -> list:
             query_texts=[query],
             n_results=min(top_k, collection.count())
         )
-        return results.get("documents", [[]])[0]
+        docs = results.get("documents", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        enriched = []
+        for d, m in zip(docs, metas):
+            src = m.get("file_name", "Personal Document") if m else "Personal Document"
+            enriched.append(f"[Source: {src}]\n{d}")
+        return enriched
     except Exception as e:
         print(f"RAG search error: {e}")
         return []

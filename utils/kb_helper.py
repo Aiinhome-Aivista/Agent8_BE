@@ -324,7 +324,13 @@ def search_kb_documents(query: str, top_k: int = 5) -> list:
             query_texts=[query],
             n_results=min(top_k, kb_collection.count())
         )
-        return results.get("documents", [[]])[0]
+        docs = results.get("documents", [[]])[0]
+        metas = results.get("metadatas", [[]])[0]
+        enriched = []
+        for d, m in zip(docs, metas):
+            src = m.get("source", "Company KB") if m else "Company KB"
+            enriched.append(f"[Source: {src}]\n{d}")
+        return enriched
     except Exception as e:
         print(f"KB search error: {e}")
         return []
