@@ -156,7 +156,8 @@ class SupervisorAgent(BaseAgent):
     def _prepare_worker_input(self, intent, original_input, session_id):
         base_input = {
             "user_id": original_input.get("user_id"),
-            "session_id": session_id
+            "session_id": session_id,
+            "intent": intent
         }
         
         if intent in ["policy_inquiry"]:
