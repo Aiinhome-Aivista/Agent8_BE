@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS mail_config (
 cursor.execute('TRUNCATE TABLE mail_config')
 cursor.execute('''
 INSERT INTO mail_config (current_role, next_role, wait_time_minutes) VALUES
-('csr', 'supervisor', 5),
-('supervisor', 'compliance', 5)
+('csr', 'supervisor', 5)
 ''')
 
 try:
