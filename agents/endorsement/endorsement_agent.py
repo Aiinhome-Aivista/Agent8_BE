@@ -81,13 +81,15 @@ class EndorsementAgent(BaseAgent):
         # Create an Escalation Ticket for CSR Review
         import uuid
         ticket_string = f"TCK-{uuid.uuid4().hex[:8].upper()}"
-        ai_summary = f"User requested to update their {db_field} from '{old_value}' to '{new_value}'."
+        from utils.common import get_least_busy_csr
+        assigned_to = get_least_busy_csr()
+
         query = """
-            INSERT INTO escalations (ticket_id, user_id, issue, category, priority, status)
-            VALUES (%s, %s, %s, %s, 'medium', 'OPEN')
+            INSERT INTO escalations (ticket_id, user_id, issue, category, priority, status, assigned_to)
+            VALUES (%s, %s, %s, %s, 'medium', 'OPEN', %s)
         """
         # fetch="none" returns the lastrowid
-        ticket_id = execute_query(query, (ticket_string, user_id, ai_summary, issue_type), fetch="none")
+        ticket_id = execute_query(query, (ticket_string, user_id, ai_summary, issue_type, assigned_to), fetch="none")
         
         # Track SLA for ticket
         if ticket_id:

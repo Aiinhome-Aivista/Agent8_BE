@@ -24,12 +24,15 @@ class EscalationAgent(BaseAgent):
         import uuid
         ticket_id_str = f"TKT-{str(uuid.uuid4())[:8].upper()}"
         
+        from utils.common import get_least_busy_csr
+        assigned_to = get_least_busy_csr()
+        
         # Create Ticket
         query = """
-            INSERT INTO escalations (ticket_id, user_id, category, issue, status)
-            VALUES (%s, %s, %s, %s, 'OPEN')
+            INSERT INTO escalations (ticket_id, user_id, category, issue, status, assigned_to)
+            VALUES (%s, %s, %s, %s, 'OPEN', %s)
         """
-        db_id = execute_query(query, (ticket_id_str, user_id, issue_type, ai_summary), fetch="none")
+        db_id = execute_query(query, (ticket_id_str, user_id, issue_type, ai_summary, assigned_to), fetch="none")
         
         if db_id:
             # Track SLA

@@ -63,6 +63,22 @@ def generate_ticket_id() -> str:
     suffix = "".join(random.choices(string.digits, k=4))
     return f"ESC-{today}-{suffix}"
 
+def get_least_busy_csr() -> int:
+    """Find the CSR with the fewest open tickets. Returns CSR user ID or None."""
+    csr = execute_query(
+        """
+        SELECT u.id, COUNT(e.id) as open_tickets
+        FROM users u
+        LEFT JOIN escalations e ON u.id = e.assigned_to AND e.status IN ('open', 'in-progress')
+        WHERE u.role = 'csr' AND u.is_active = 1
+        GROUP BY u.id
+        ORDER BY open_tickets ASC
+        LIMIT 1
+        """,
+        fetch="one"
+    )
+    return csr["id"] if csr else None
+
 def generate_transaction_id() -> str:
     """Generate a fake but realistic UPI transaction ID."""
     return "TXN" + "".join(random.choices(string.digits, k=12))

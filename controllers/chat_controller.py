@@ -310,6 +310,38 @@ def get_customer_sessions_csr(customer_user_id: int, token_data: dict = Depends(
     return {"sessions": enriched, "customer_user_id": customer_user_id}
 
 
+@router.get("/history/customer/{customer_user_id}")
+def get_customer_history_csr(
+    customer_user_id: int,
+    page: int = 1,
+    page_size: int = 50,
+    session_id: Optional[str] = None,
+    token_data: dict = Depends(verify_token)
+):
+    """CSR-only: view paginated chat history for an assigned customer."""
+    if token_data.get("role") not in ("csr", "supervisor", "compliance"):
+        # pyrefly: ignore [missing-import]
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="CSR access only")
+        
+    offset = (page - 1) * page_size
+
+    if session_id:
+        rows = execute_query(
+            "SELECT id, session_id, user_message, ai_response, detected_intent, confidence_score, created_at FROM chat_history WHERE user_id = %s AND session_id = %s ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            (customer_user_id, session_id, page_size, offset), fetch="all"
+        )
+        total = execute_query("SELECT COUNT(*) as cnt FROM chat_history WHERE user_id = %s AND session_id = %s", (customer_user_id, session_id), fetch="one")
+    else:
+        rows = execute_query(
+            "SELECT id, session_id, user_message, ai_response, detected_intent, confidence_score, created_at FROM chat_history WHERE user_id = %s ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            (customer_user_id, page_size, offset), fetch="all"
+        )
+        total = execute_query("SELECT COUNT(*) as cnt FROM chat_history WHERE user_id = %s", (customer_user_id,), fetch="one")
+
+    return {"history": rows, "total": total["cnt"] if total else 0, "page": page, "page_size": page_size}
+
+
 @router.delete("/history")
 def clear_history(token_data: dict = Depends(verify_token)):
     """Clear all chat history for the current user."""

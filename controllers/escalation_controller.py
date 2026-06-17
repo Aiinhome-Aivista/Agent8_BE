@@ -57,8 +57,9 @@ async def create_escalation(
         attachment_path = f"uploads/{safe_filename}"
 
     # Auto-assign to first available CSR
-    csr = execute_query("SELECT id FROM users WHERE role = 'csr' AND is_active = 1 LIMIT 1", fetch="one")
-    assigned = csr["id"] if csr else None
+    # Least-busy CSR assignment
+    from utils.common import get_least_busy_csr
+    assigned = get_least_busy_csr()
 
     # Parse policy_id as int if provided
     pid = int(policy_id) if policy_id and policy_id != "null" else None
