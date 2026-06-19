@@ -22,7 +22,7 @@ class EndorsementAgent(BaseAgent):
         # since the prompt didn't specify exactly how to extract the new email/address robustly.
         # Flow 3 prompt: "I want to update my email address to new.email@test.com"
         
-        last_message = chat_history[-1] if chat_history else ""
+        last_message = input_data.get("user_input") or (chat_history[-1] if chat_history else "")
         
         # Extract new value more robustly
         new_value = None
@@ -88,6 +88,7 @@ class EndorsementAgent(BaseAgent):
             INSERT INTO escalations (ticket_id, user_id, issue, category, priority, status, assigned_to)
             VALUES (%s, %s, %s, %s, 'medium', 'OPEN', %s)
         """
+        ai_summary = f"User requested to update their {db_field} from '{old_value}' to '{new_value}'."
         # fetch="none" returns the lastrowid
         ticket_id = execute_query(query, (ticket_string, user_id, ai_summary, issue_type, assigned_to), fetch="none")
         

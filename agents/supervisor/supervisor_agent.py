@@ -82,8 +82,8 @@ class SupervisorAgent(BaseAgent):
         })
 
         # 3. Route to Worker
-        # OTP Check for personal queries
-        if detected_intent in ["personal_faq", "profile_summary"]:
+        # OTP Check for personal queries and sensitive updates
+        if detected_intent in ["personal_faq", "profile_summary", "address_update", "phone_update", "email_update", "nominee_update"]:
             mem = self.memory_service.get_session_memory(session_id)
             if not mem.get("otp_verified"):
                 self.memory_service.update_session_memory(session_id, user_id, {
@@ -156,6 +156,7 @@ class SupervisorAgent(BaseAgent):
 
     def _prepare_worker_input(self, intent, original_input, session_id):
         base_input = {
+            "user_input": original_input.get("user_input"),
             "user_id": original_input.get("user_id"),
             "session_id": session_id,
             "intent": intent

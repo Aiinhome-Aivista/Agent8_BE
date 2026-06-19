@@ -1,10 +1,12 @@
 # api/controllers/compliance_controller.py
+# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from database.db import execute_query
 from middleware.jwt_auth import require_role
 from utils.common import write_audit_log
 import csv, io
+# pyrefly: ignore [missing-import]
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/compliance", tags=["Compliance"])
@@ -73,19 +75,29 @@ def get_sensitive_actions(token_data: dict = Depends(require_role("compliance", 
 
 @router.get("/summary")
 def get_compliance_summary(token_data: dict = Depends(require_role("compliance", "supervisor"))):
-    total_logs = execute_query("SELECT COUNT(*) as cnt FROM audit_logs", fetch="one")
-    guardrail_count = execute_query("SELECT COUNT(*) as cnt FROM guardrail_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", fetch="one")
-    sensitive_count = execute_query("SELECT COUNT(*) as cnt FROM audit_logs WHERE severity='sensitive' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", fetch="one")
-    high_count = execute_query("SELECT COUNT(*) as cnt FROM audit_logs WHERE severity='high' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)", fetch="one")
-    action_breakdown = execute_query(
-        "SELECT action, COUNT(*) as cnt FROM audit_logs GROUP BY action ORDER BY cnt DESC LIMIT 10", fetch="all"
-    )
+    from database.db import db_cursor
+    with db_cursor() as (conn, cur):
+        cur.execute("SELECT COUNT(*) as cnt FROM audit_logs")
+        total_logs = cur.fetchone()
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM guardrail_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")
+        guardrail_count = cur.fetchone()
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM audit_logs WHERE severity='sensitive' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")
+        sensitive_count = cur.fetchone()
+        
+        cur.execute("SELECT COUNT(*) as cnt FROM audit_logs WHERE severity='high' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")
+        high_count = cur.fetchone()
+        
+        cur.execute("SELECT action, COUNT(*) as cnt FROM audit_logs GROUP BY action ORDER BY cnt DESC LIMIT 10")
+        action_breakdown = cur.fetchall()
+
     return {
-        "total_audit_logs": total_logs["cnt"],
-        "guardrail_violations_30d": guardrail_count["cnt"],
-        "sensitive_actions_30d": sensitive_count["cnt"],
-        "high_severity_30d": high_count["cnt"],
-        "action_breakdown": action_breakdown,
+        "total_audit_logs": total_logs["cnt"] if total_logs else 0,
+        "guardrail_violations_30d": guardrail_count["cnt"] if guardrail_count else 0,
+        "sensitive_actions_30d": sensitive_count["cnt"] if sensitive_count else 0,
+        "high_severity_30d": high_count["cnt"] if high_count else 0,
+        "action_breakdown": action_breakdown or [],
         "compliance_score": 96,
     }
 
