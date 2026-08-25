@@ -11,7 +11,7 @@ import re
 class RAGAgent(BaseAgent):
     def __init__(self):
         super().__init__("RAGAgent")
-        self.model = os.getenv("MISTRAL_MODEL", "")
+        self.model = os.getenv("LLM_MODEL") or os.getenv("MISTRAL_MODEL", "mistral-small:24b")
         
         # Initialize CrossEncoder for reranking
         try:

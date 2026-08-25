@@ -30,7 +30,7 @@ ARANGO_DB       = os.getenv("ARANGO_DB", "")
 ARANGO_USERNAME = os.getenv("ARANGO_USERNAME", "")
 ARANGO_PASSWORD = os.getenv("ARANGO_PASSWORD", "")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
-MISTRAL_MODEL   = os.getenv("MISTRAL_MODEL", "")
+MISTRAL_MODEL   = os.getenv("LLM_MODEL") or os.getenv("MISTRAL_MODEL", "mistral-small:24b")
 RELEVANCE_THRESHOLD = int(os.getenv("RELEVANCE_THRESHOLD", "70"))
 
 # ─── ChromaDB Setup ───────────────────────────────────────────────────────────

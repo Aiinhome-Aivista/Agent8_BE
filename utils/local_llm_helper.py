@@ -4,12 +4,14 @@ import requests
 
 def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperature: float = 0.7, json_mode: bool = False) -> dict:
     mode = os.getenv("LLM_MODE", "local").lower()
+    timeout = int(os.getenv("LLM_TIMEOUT", "300"))
+    api_url = os.getenv("LLM_API_URL")
     
-    # --- API MODE ---
-    if mode == "api" and os.getenv("MISTRAL_API_KEY"):
+    # --- API MODE (Official Mistral Cloud API using API Key) ---
+    if mode == "api" and os.getenv("MISTRAL_API_KEY") and not api_url:
         url = os.getenv("MISTRAL_API_URL", "https://api.mistral.ai/v1/chat/completions")
         api_key = os.getenv("MISTRAL_API_KEY")
-        use_model = model or os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+        use_model = model or os.getenv("LLM_MODEL") or os.getenv("MISTRAL_MODEL", "mistral-small-latest")
         
         headers = {
             "Content-Type": "application/json",
@@ -26,7 +28,7 @@ def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperatu
             payload["response_format"] = {"type": "json_object"}
             
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
             response.raise_for_status()
             return response.json()  # Official API returns correct format
         except Exception as e:
@@ -34,10 +36,15 @@ def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperatu
             print(f"Error calling official Mistral API: {e} - Details: {error_details}")
             return {"choices": [{"message": {"content": "{}"}}]}
 
-    # --- LOCAL MODE ---
+    # --- LOCAL / CUSTOM ENDPOINT MODE (e.g. Ollama generate endpoint) ---
     else:
-        endpoint = os.getenv("MISTRAL_ENDPOINT", "http://122.163.121.176:3038")
-        use_model = model or "mistral:latest"
+        if api_url:
+            url = api_url
+        else:
+            endpoint = os.getenv("MISTRAL_ENDPOINT", "http://122.163.121.176:3041")
+            url = f"{endpoint.rstrip('/')}/api/generate"
+            
+        use_model = model or os.getenv("LLM_MODEL") or os.getenv("MISTRAL_MODEL", "mistral-small:24b")
         
         prompt = ""
         for msg in messages:
@@ -45,7 +52,6 @@ def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperatu
             content = msg.get("content", "")
             prompt += f"{role.upper()}:\n{content}\n\n"
 
-        url = f"{endpoint}/api/generate"
         payload = {
             "model": use_model,
             "prompt": prompt,
@@ -61,7 +67,7 @@ def _chat(messages: list, *, model: str = None, max_tokens: int = 400, temperatu
         headers = {"Content-Type": "application/json"}
         
         try:
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
+            response = requests.post(url, json=payload, headers=headers, timeout=timeout)
             response.raise_for_status()
             data = response.json()
             return {
