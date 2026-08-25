@@ -1,7 +1,7 @@
 import requests
 
 # Login to get token
-resp = requests.post("http://localhost:8001/api/auth/login", json={
+resp = requests.post("http://187.127.163.17:3033/api/auth/login", json={
     "email": "soniakhatun9786@gmail.com",
     "password": "123456"
 })
@@ -11,7 +11,7 @@ if resp.status_code == 200:
     print("Login successful")
     
     # Get policies
-    pol_resp = requests.get("http://localhost:8001/api/policies", headers={
+    pol_resp = requests.get("http://187.127.163.17:3033/api/policies", headers={
         "Authorization": f"Bearer {token}"
     })
     print("Policies API Status:", pol_resp.status_code)
