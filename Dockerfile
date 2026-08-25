@@ -18,4 +18,4 @@ EXPOSE 3033
 
 # Command to run the application
 # CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3033"]
-CMD [python app.py]
+CMD ["python", "app.py"]
